@@ -1,0 +1,31 @@
+node_modules/
+out/
+dist/
+
+# LOGS -- never commit
+*.log
+logs/
+npm-debug.log*
+yarn-error.log*
+report.*.json
+
+# local environment
+.env
+.env.*
+!.env.example
+
+# POEM DATA never lives here. The real corpus is referenced by MIDST_CORPUS.
+*.midst
+*.midst.zip
+corpus/
+converted/
+# ...except the SYNTHETIC fixtures, which are hand-written and contain no poem.
+# Without this negation the conformance suite ships with no fixtures and tests nothing.
+!fixtures/synthetic/
+!fixtures/synthetic/*.midst.zip
+
+# code-graph
+code-graph.db
+code-graph.db.wal
+manifest.json
+entry.generated.ts

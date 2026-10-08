@@ -1,0 +1,26 @@
+{
+  "name": "@midst-press/midst-format",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The .midst file format: spec, converters between generations, and the conformance suite.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "provenance": "node conformance/provenance.cjs",
+    "build:harness": "node conformance/build.mjs",
+    "test": "node conformance/trajectory.cjs fixtures/synthetic",
+    "conformance": "node conformance/verify_all.cjs",
+    "markloss": "node conformance/markloss.cjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "2.5.4",
+    "@tiptap/html": "2.5.4",
+    "@tiptap/pm": "2.5.4",
+    "@tiptap/starter-kit": "2.5.4",
+    "node-html-parser": "6.1.13"
+  },
+  "devDependencies": {
+    "esbuild": "0.23.1",
+    "typescript": "5.1.6"
+  },
+  "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have."
+}
