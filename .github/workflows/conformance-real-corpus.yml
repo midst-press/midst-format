@@ -1,0 +1,44 @@
+# The REAL corpus: 58 poem timelapses. Manual only, and it must run where the data is.
+# It publishes pass/fail and paragraph deltas. It must never publish poem text.
+name: conformance (real corpus)
+on:
+  workflow_dispatch:
+    inputs:
+      corpus_path:
+        description: absolute path to the directory of .midst.zip files on the runner
+        required: true
+permissions:
+  contents: read
+jobs:
+  conformance:
+    # Self-hosted: the corpus is not on GitHub and must not be uploaded to it.
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with: { path: midst-format }
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          repository: midst-press/midst-editor
+          path: midst-editor
+          token: ${{ secrets.MIDST_REPO_READ_TOKEN }}
+      - run: npm ci
+        working-directory: midst-format
+      - name: build harness
+        working-directory: midst-format
+        env: { MIDST_EDITOR_SRC: '${{ github.workspace }}/midst-editor' }
+        run: npm run build:harness
+      - name: run conformance
+        working-directory: midst-format
+        env:
+          MIDST_CORPUS: ${{ inputs.corpus_path }}
+          MIDST_OUT: ${{ runner.temp }}/converted
+        run: node conformance/verify_all.cjs | tee "${{ runner.temp }}/summary.txt"
+      - name: publish ONLY the summary table, never the poems or the conversions
+        run: |
+          echo '### Conformance, real corpus' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(PASS|FAIL|ERR|controls|$)' "${{ runner.temp }}/summary.txt" >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: remove the conversions from the runner
+        if: always()
+        run: rm -rf "${{ runner.temp }}/converted"
