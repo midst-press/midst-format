@@ -9,7 +9,9 @@
 # where the other macOS runner is the account every Kindled session on that machine shares.
 #
 # Homebrew first, always: every step runs under Homebrew's bash, and each job puts Homebrew at the
-# front of PATH and then verifies it. pre-commit goes into a throwaway virtual environment, never
+# front of PATH and then verifies it. Node is Homebrew's too, not setup-node's: this runner gives
+# every job a fresh, empty tool cache, so setup-node downloaded Node on every job. The guard fails
+# the job if Homebrew's node does not match .nvmrc. pre-commit goes into a throwaway virtual environment, never
 # into a host Python.
 name: ci
 on:
@@ -35,9 +37,6 @@ jobs:
           echo /opt/homebrew/sbin >> "$GITHUB_PATH"
           echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
       # Fail loudly rather than fall back to what macOS ships (bash 3.2, Python 3.9). The runner
       # account's own PATH is not ours to rely on, so this job puts Homebrew first itself and then
       # checks that it took.
@@ -79,9 +78,6 @@ jobs:
           printf '%s\n' '[gitea-server]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/VGpxJRKcHAJCSqYHQ+NZNS7v2pibbUelMYqemnO8DOoAU6fngzVz49QPLvYQXy3Rc1W57+cf1MOrzYVJC3unsyIiMGycgQdKBqHAc8+rmBPvGvS+0U28T2F8idZlzfLIa8kt6K7dUkw2l65h5mHxAQ8YHyLv9kgNRVYMzjZmmX4Y1mYdJegyP8IAZUVgKewzw6FVNnJrN0/iomQSfhwYBIoPN4w9cUrKLuIteZX0Rs1FEZbSMy9GxyiH0fRn0X9P/0QO973UwaxlkSEKZY31+Geex1ynCEuulwQGkhhGhmnnaTCTlS9hwHpJ+pcrb0OnVdJj8cxeq1WLyVnZMEtHbu5+LX8ViicW8exEf9VAcJUExgn+itJXU5NceNcZLotDScJXGV1UI/de5TgjuB3WyFQphYdeiuKxwRywtV8fEFzzZRl+t1gSDvDjSU3/DJM4gZm5lARUnClUOW6uRGx6wuryhBeYoJroBzlnHZp+yOlWYdTwrcZG5+wk60R6ETjqOq/zysAg2fZTA2obvTmYlOojYf+nfvIPT0I0FZNPDaY1qqtR8pgJwZX61yHtDEiqHyje+NQUeIvAt+vm7wQ6coYSlle+5zzWuDZzgo15KkXqAZCdgv8al+WRSZKTdGnNer5cB0uZSBSDr9dg95WLX0o+rUYTX9g0ocmcrOpP0Q==' > "$RUNNER_TEMP/known_hosts"
           export GIT_SSH_COMMAND="ssh -F /dev/null -p 2222 -i $RUNNER_TEMP/editor_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
           git clone --quiet --depth 1 stuartswerdloff@gitea-server:The_Kindled/midst-editor.git midst-editor
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: midst-format/.nvmrc
       # Fail loudly rather than fall back to what macOS ships (bash 3.2, Python 3.9). The runner
       # account's own PATH is not ours to rely on, so this job puts Homebrew first itself and then
       # checks that it took.
