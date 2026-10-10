@@ -26,8 +26,12 @@ for(const zip of zips){
       .split('\n').map(s=>s.trim()).filter(Boolean)
       .filter(n=>n.endsWith('.midst')&&!n.startsWith('__MACOSX'));
     if(listing.length!==1) throw new Error(`expected exactly 1 .midst entry, found ${listing.length}: ${listing.slice(0,3)}`);
-    execFileSync('unzip',['-q','-j','-o',zip,listing[0],'-d',tmp],{stdio:'pipe'});
-    const old=fs.readFileSync(path.join(tmp,path.basename(listing[0])),'utf8');
+    // Extract WITHOUT naming the entry: an entry name passed back to unzip as an argument failed on one
+    // accented name (archive #39 of 54). Take everything except __MACOSX, then find the file on disk.
+    execFileSync('unzip',['-q','-j','-o',zip,'-x','__MACOSX/*','-d',tmp],{stdio:'pipe'});
+    const extracted=fs.readdirSync(tmp).filter(n=>n.endsWith('.midst'));
+    if(extracted.length!==1) throw new Error(`expected exactly 1 extracted .midst, found ${extracted.length}`);
+    const old=fs.readFileSync(path.join(tmp,extracted[0]),'utf8');
     const parsed=JSON.parse(old);
     const frames=parsed.editorTimelineFrames;
     if(!Array.isArray(frames)) throw new Error('no editorTimelineFrames array; keys='+Object.keys(parsed).join(','));
