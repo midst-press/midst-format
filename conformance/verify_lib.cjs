@@ -11,6 +11,7 @@ const fs = require('fs'),
   os = require('os'),
   crypto = require('crypto');
 const { execFileSync } = require('child_process');
+const { textOf } = require('./textexact.cjs');
 
 const step = (i, c) => i.slice(0, c.front) + c.inserted + i.slice(i.length - c.end);
 const sha12 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex').slice(0, 12);
@@ -71,10 +72,13 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
     if (history.length > frames.length) throw new ConformanceError('HISTORY_LONGER_THAN_FRAMES', history.length - frames.length);
     let acc = '',
       bad = 0,
+      textBad = 0,
       firstBad = null;
     for (let i = 0; i < history.length; i++) {
       acc = step(acc, history[i]);
       const exp = normalise(frames[i].content);
+      // Independent of the converter's parse: the characters of the SOURCE frame against the replay.
+      if (textOf(acc) !== textOf(frames[i].content)) textBad++;
       if (acc !== exp) {
         bad++;
         // Lengths and hashes let two local runs be compared. They go to VERIFICATION.json only and are
@@ -104,6 +108,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       frames: frames.length,
       hist: history.length,
       trajectoryBad: bad,
+      textBad,
       firstBad,
       endpointOk: acc === text,
       control,
@@ -118,7 +123,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
   }
 }
 
-const passed = (r) => !r.error && r.trajectoryBad === 0 && r.endpointOk;
+const passed = (r) => !r.error && r.trajectoryBad === 0 && r.textBad === 0 && r.endpointOk;
 
 // The printed line. A passing row is named by its archive file, as before. A failing or erroring row
 // is named by its index alone, and says only what describeError allows, plus the first bad frame's
@@ -129,7 +134,7 @@ function formatRow(r) {
     const e = r.error;
     return `ERR  ${id}  stage:${e.stage} class:${e.class}${e.code ? ` code:${e.code}` : ''}${'count' in e ? ` count:${e.count}` : ''}${'exit' in e ? ` exit:${e.exit}` : ''}`;
   }
-  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} control:${r.control} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
+  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} textBad:${String(r.textBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} control:${r.control} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
   if (passed(r)) return `PASS ${r.name.padEnd(44)} ${tail}`;
   const fb = r.firstBad;
   return `FAIL ${id.padEnd(44)} ${tail}${fb ? ` firstBad:${fb.i}` : ''}`;
@@ -142,4 +147,18 @@ const recordRow = (r) => {
   return rest;
 };
 
-module.exports = { verifyZip, formatRow, recordRow, passed, describeError, ConformanceError, step };
+// Totals, and the exit status the run must end with. Non-zero when any poem failed or errored, when a
+// control did not fire (that poem's PASS means nothing), or when there was nothing to verify. Without
+// this the suite printed FAIL and exited 0, so no CI job or hook could go red (clement-7074f29f).
+function summarise(rows) {
+  const ok = rows.filter(passed).length;
+  const err = rows.filter((r) => r.error).length;
+  const bad = rows.length - ok - err;
+  const withControl = rows.filter((r) => r.control !== null && r.control !== undefined);
+  const ctl = withControl.filter((r) => r.control === true).length;
+  const ctlN = withControl.length;
+  const exitCode = rows.length > 0 && bad === 0 && err === 0 && ctl === ctlN ? 0 : 1;
+  return { ok, bad, err, ctl, ctlN, total: rows.length, exitCode };
+}
+
+module.exports = { verifyZip, formatRow, recordRow, passed, summarise, describeError, ConformanceError, step };

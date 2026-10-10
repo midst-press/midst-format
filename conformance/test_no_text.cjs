@@ -43,7 +43,7 @@ const CASES = {
 const zipName = (c) => `synthetic--${MARK.object}-${c}.midst.zip`;
 
 function child(dir) {
-  const { verifyZip, formatRow, recordRow } = require('./verify_lib.cjs');
+  const { verifyZip, formatRow, recordRow, summarise } = require('./verify_lib.cjs');
   const { normalise } = require('./normalise.cjs');
   // A stand-in converter: each change replaces the whole text with the next frame.
   const converter = (mode) => (old) => {
@@ -60,6 +60,10 @@ function child(dir) {
   );
   rows.forEach((r) => console.log(formatRow(r)));
   fs.writeFileSync(path.join(dir, 'rows.json'), JSON.stringify(rows.map(recordRow)));
+  // The exit status, for: every row; the passing row alone; that row with its control unfired; no rows.
+  const pass = rows[0];
+  const codes = [rows, [pass], [{ ...pass, control: false }], []].map((r) => summarise(r).exitCode);
+  fs.writeFileSync(path.join(dir, 'exit.json'), JSON.stringify(codes));
 }
 
 function parent() {
@@ -110,6 +114,9 @@ function parent() {
     assert.strictEqual(by['no-frames'].line, 'ERR  #05  stage:parse class:ConformanceError code:NO_FRAMES_ARRAY count:1');
     assert.strictEqual(by['converter-throws'].line, 'ERR  #06  stage:convert class:Error');
     assert.match(by['broken-zip'].line, /^ERR {2}#09 {2}stage:list class:Error exit:\d+$/);
+
+    // THE EXIT STATUS. A failing run, an unfired control and an empty corpus must all be non-zero.
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'exit.json'), 'utf8')), [1, 0, 1, 1], 'exit status');
 
     // THE RULE. No marker anywhere in what a failing case printed or recorded.
     const failing = Object.keys(CASES).filter((c) => c !== 'passes');

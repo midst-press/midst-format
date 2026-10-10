@@ -15,5 +15,6 @@ const extensions = [
     strike: false,
   }),
 ];
-const normalise = (html) => generateHTML(generateJSON(html, extensions), extensions);
+// Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
+const normalise = (html) => generateHTML(generateJSON(html, extensions, { preserveWhitespace: true }), extensions);
 module.exports = { extensions, normalise };

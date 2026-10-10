@@ -3,7 +3,7 @@ const fs = require('fs'),
   os = require('os');
 const { convertMidstFile } = require('../out/converter.cjs');
 const { normalise } = require('./normalise.cjs');
-const { verifyZip, formatRow, recordRow, passed } = require('./verify_lib.cjs');
+const { verifyZip, formatRow, recordRow, summarise } = require('./verify_lib.cjs');
 // Paths come from the environment. Poem data never lives in this repository.
 const CORPUS = process.env.MIDST_CORPUS;
 const OUT = process.env.MIDST_OUT || path.join(os.tmpdir(), 'midst-converted');
@@ -33,12 +33,9 @@ fs.writeFileSync(
   path.join(OUT, 'VERIFICATION.json'),
   JSON.stringify({ generated: new Date().toISOString(), by: 'violet-14057653', rows: rows.map(recordRow) }, null, 1),
 );
-const ok = rows.filter(passed).length;
-const bad = rows.filter((r) => !r.error && !passed(r)).length;
-const err = rows.filter((r) => r.error).length;
-const ctl = rows.filter((r) => r.control === true).length,
-  ctlN = rows.filter((r) => r.control !== null && r.control !== undefined).length;
-console.log(`\nPASS ${ok}   FAIL ${bad}   ERROR ${err}   of ${rows.length}`);
+const s = summarise(rows);
+console.log(`\nPASS ${s.ok}   FAIL ${s.bad}   ERROR ${s.err}   of ${s.total}`);
 console.log(
-  `controls fired: ${ctl}/${ctlN}  (a poem whose control did not fire has an INSENSITIVE check and its PASS means nothing)`,
+  `controls fired: ${s.ctl}/${s.ctlN}  (a poem whose control did not fire has an INSENSITIVE check and its PASS means nothing)`,
 );
+process.exit(s.exitCode);
