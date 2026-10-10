@@ -29,11 +29,16 @@ jobs:
         run: npm run build:harness
       - name: run conformance
         working-directory: midst-format
+        # An explicit shell gives `bash -eo pipefail`. Without it the step is `bash -e` and takes tee's
+        # exit status, so a failing verify_all still left this step green.
+        shell: bash
         env:
           MIDST_CORPUS: ${{ inputs.corpus_path }}
           MIDST_OUT: ${{ runner.temp }}/converted
         run: node conformance/verify_all.cjs | tee "${{ runner.temp }}/summary.txt"
       - name: publish ONLY the summary table, never the poems or the conversions
+        # always(): the summary matters most on the run that failed.
+        if: always()
         run: |
           echo '### Conformance, real corpus' >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
