@@ -51,3 +51,9 @@ repos:
         entry: bash -c 'MIDST_CORPUS=fixtures/synthetic node conformance/verify_all.cjs'
         pass_filenames: false
         files: "^(conformance/|fixtures/)"
+      - id: no-text-on-failure
+        name: a failing poem leaves no text in any output
+        language: system
+        entry: node conformance/test_no_text.cjs
+        pass_filenames: false
+        files: "^conformance/"

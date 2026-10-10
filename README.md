@@ -86,6 +86,7 @@ would have been green and worthless.
     npm ci                 # ci, never install: the pins are exact and version-sensitive
     npm run provenance     # asserts the transcribed TipTap config still matches upstream
     npm test               # synthetic corpus, safe to run anywhere
+    npm run test:no-text   # a poem that FAILS must leave no text in the output; needs no harness
     npm run conformance    # the real corpus. Requires MIDST_CORPUS to point at it. Never in public CI.
 
 ⚠️ **Dependencies are pinned exactly, not with a caret.** `@tiptap/*` at `^2.5.4` resolves to 2.27.3
