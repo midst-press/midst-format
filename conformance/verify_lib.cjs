@@ -2,7 +2,8 @@
 // below can be tested with a stand-in converter and fixtures built on the spot.
 //
 // NOTHING A ROW CARRIES MAY BE POEM TEXT. A row holds an index, counts, lengths, hashes, booleans, an
-// exception CLASS and a fixed reason code. Never a slice of a frame, never an entry name from inside
+// exception CLASS and a fixed reason code. Hashes and frame lengths stay in the recorded row; the
+// printed line has neither. Never a slice of a frame, never an entry name from inside
 // the zip (some are poem titles), never an exception's message (JSON.parse quotes its input). These
 // rows are written to VERIFICATION.json and printed, and a workflow publishes the printed lines.
 const fs = require('fs'),
@@ -67,6 +68,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
     const converted = convertMidstFile(old);
     const { text, history } = JSON.parse(converted);
     stage = 'verify';
+    if (history.length > frames.length) throw new ConformanceError('HISTORY_LONGER_THAN_FRAMES', history.length - frames.length);
     let acc = '',
       bad = 0,
       firstBad = null;
@@ -75,7 +77,9 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       const exp = normalise(frames[i].content);
       if (acc !== exp) {
         bad++;
-        // Lengths and hashes say that and where it differs, and let two runs be compared. No text.
+        // Lengths and hashes let two local runs be compared. They go to VERIFICATION.json only and are
+        // never printed: an unkeyed hash beside an exact length can be brute-forced for a short frame,
+        // or confirmed against a guess, and the printed line is published (clement-7074f29f).
         if (!firstBad) firstBad = { i, expLen: exp.length, gotLen: acc.length, expSha: sha12(exp), gotSha: sha12(acc) };
       }
     }
@@ -117,7 +121,8 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
 const passed = (r) => !r.error && r.trajectoryBad === 0 && r.endpointOk;
 
 // The printed line. A passing row is named by its archive file, as before. A failing or erroring row
-// is named by its index alone, and says only what describeError and firstBad allow.
+// is named by its index alone, and says only what describeError allows, plus the first bad frame's
+// number. firstBad's lengths and hashes are not printed.
 function formatRow(r) {
   const id = `#${String(r.index).padStart(2, '0')}`;
   if (r.error) {
@@ -127,7 +132,7 @@ function formatRow(r) {
   const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} control:${r.control} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
   if (passed(r)) return `PASS ${r.name.padEnd(44)} ${tail}`;
   const fb = r.firstBad;
-  return `FAIL ${id.padEnd(44)} ${tail}${fb ? ` firstBad:${fb.i} expLen:${fb.expLen} gotLen:${fb.gotLen} expSha:${fb.expSha} gotSha:${fb.gotSha}` : ''}`;
+  return `FAIL ${id.padEnd(44)} ${tail}${fb ? ` firstBad:${fb.i}` : ''}`;
 }
 
 // The row as written to VERIFICATION.json: a row that did not pass loses its archive name too.

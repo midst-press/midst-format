@@ -35,6 +35,9 @@ const CASES = {
   'not-json': { entries: { 'inner.midst': `${MARK.json} is not JSON` }, convert: 'ok' },
   'no-frames': { entries: { 'inner.midst': JSON.stringify({ [MARK.key]: [1] }) }, convert: 'ok' },
   'converter-throws': { entries: { 'inner.midst': B(FRAMES) }, convert: 'throw' },
+  // The first bad frame is ONE short word: the case where a printed hash and length could be inverted.
+  'short-frame': { entries: { 'inner.midst': B(['<p>a</p>', '<p>cat</p>', '<p>cat sat</p>']) }, convert: 'corrupt' },
+  'long-history': { entries: { 'inner.midst': B(FRAMES) }, convert: 'extra' },
   'broken-zip': { raw: 'this is not a zip archive' },
 };
 const zipName = (c) => `synthetic--${MARK.object}-${c}.midst.zip`;
@@ -49,6 +52,7 @@ function child(dir) {
     const history = frames.map((inserted) => ({ front: 0, inserted, end: 0 }));
     const text = frames[frames.length - 1];
     if (mode === 'corrupt') history[1] = { ...history[1], inserted: history[1].inserted + 'X' };
+    if (mode === 'extra') history.push({ front: 0, inserted: text, end: 0 });
     return JSON.stringify({ text, history });
   };
   const rows = Object.keys(CASES).map((c, i) =>
@@ -98,12 +102,14 @@ function parent() {
 
     // Each case failed in the way it was built to.
     assert.match(by.passes.line, /^PASS /);
-    assert.match(by.mismatch.line, /^FAIL #02 .*badFrames: +1 .*firstBad:1 expLen:\d+ gotLen:\d+ expSha:[0-9a-f]{12} gotSha:[0-9a-f]{12}$/);
+    assert.match(by.mismatch.line, /^FAIL #02 .*badFrames: +1 .* firstBad:1$/);
+    assert.match(by['short-frame'].line, /^FAIL #07 .* firstBad:1$/);
+    assert.strictEqual(by['long-history'].line, 'ERR  #08  stage:verify class:ConformanceError code:HISTORY_LONGER_THAN_FRAMES count:1');
     assert.strictEqual(by['two-entries'].line, 'ERR  #03  stage:list class:ConformanceError code:ENTRY_COUNT count:2');
     assert.strictEqual(by['not-json'].line, 'ERR  #04  stage:parse class:SyntaxError');
     assert.strictEqual(by['no-frames'].line, 'ERR  #05  stage:parse class:ConformanceError code:NO_FRAMES_ARRAY count:1');
     assert.strictEqual(by['converter-throws'].line, 'ERR  #06  stage:convert class:Error');
-    assert.match(by['broken-zip'].line, /^ERR {2}#07 {2}stage:list class:Error exit:\d+$/);
+    assert.match(by['broken-zip'].line, /^ERR {2}#09 {2}stage:list class:Error exit:\d+$/);
 
     // THE RULE. No marker anywhere in what a failing case printed or recorded.
     const failing = Object.keys(CASES).filter((c) => c !== 'passes');
@@ -116,11 +122,21 @@ function parent() {
       }
       assert.ok(!('name' in by[c].row), `${c}: its recorded row carries a name`);
     }
+    // NO HASH AND NO FRAME LENGTH IS PRINTED. An unkeyed hash beside an exact length can be brute-forced
+    // for a short frame or confirmed against a guess, and a marker search cannot see that.
+    for (const c of ['mismatch', 'short-frame']) {
+      const fb = by[c].row.firstBad;
+      assert.match(fb.expSha, /^[0-9a-f]{12}$/, `control: ${c} has a hash in its recorded row`);
+      assert.ok(fb.expSha !== fb.gotSha && fb.expLen !== fb.gotLen, `control: ${c}'s recorded hashes and lengths differ`);
+      for (const v of [fb.expSha, fb.gotSha]) assert.ok(!has(printed, v), `${c}: a frame hash was printed`);
+      assert.ok(!/expLen|gotLen|Sha/.test(by[c].line), `${c}: its printed line names a frame length or hash`);
+    }
+    for (const c of failing) assert.ok(!/[0-9a-f]{12}/.test(by[c].line), `${c}: its printed line holds something hash-shaped`);
     // And nowhere on stdout or stderr except the one PASS line, which names its archive file.
     const rest = printed.replace(by.passes.line, '');
     for (const [kind, word] of Object.entries(MARK)) assert.ok(!has(rest, word), `the ${kind} marker reached stdout or stderr`);
     assert.strictEqual(run.stderr, '', 'something was written to stderr');
-    console.log(`no text: ${failing.length} failing cases, ${Object.keys(MARK).length} markers, none in any output; 4 controls held`);
+    console.log(`no text: ${failing.length} failing cases, ${Object.keys(MARK).length} markers, none in any output, no hash printed; controls held`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
