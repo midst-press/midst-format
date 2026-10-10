@@ -20,8 +20,7 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "prettier": "3.9.10",
-    "typescript": "5.9.3"
+    "prettier": "3.9.10"
   },
   "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have."
 }
