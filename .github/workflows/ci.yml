@@ -14,18 +14,18 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: npm ci
       - name: pre-commit (the same hooks your commit runs)
         run: |
-          pip install 'pre-commit==4.6.0'
+          pip install 'pre-commit==4.6.2'
           # conformance-synthetic needs the harness built from a midst-editor checkout, which this
           # job does not have. The conformance job below builds it and runs the suite properly.
           SKIP=conformance-synthetic pre-commit run --all-files --show-diff-on-failure
@@ -34,15 +34,15 @@ jobs:
     name: conformance, synthetic corpus
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { path: midst-format }
       - name: check out midst-editor, whose util.ts is the converter under test
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: midst-press/midst-editor
           path: midst-editor
           token: ${{ secrets.MIDST_REPO_READ_TOKEN }}
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: midst-format/.nvmrc
           cache: npm
