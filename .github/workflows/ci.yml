@@ -66,6 +66,9 @@ jobs:
         working-directory: midst-format
         # The real corpus is poem data and never runs here. See DATA.md.
         run: MIDST_CORPUS=fixtures/synthetic node conformance/verify_all.cjs
+      - name: a failing poem leaves no text in any output
+        working-directory: midst-format
+        run: npm run test:no-text
       - name: mark-loss detector
         working-directory: midst-format
         run: MIDST_CORPUS=fixtures/synthetic node conformance/markloss.cjs
