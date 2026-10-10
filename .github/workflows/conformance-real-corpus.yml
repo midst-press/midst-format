@@ -14,9 +14,9 @@ jobs:
     # Self-hosted: the corpus is not on GitHub and must not be uploaded to it.
     runs-on: [self-hosted]
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with: { path: midst-format }
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           repository: midst-press/midst-editor
           path: midst-editor
@@ -25,7 +25,7 @@ jobs:
         working-directory: midst-format
       - name: build harness
         working-directory: midst-format
-        env: { MIDST_EDITOR_SRC: '${{ github.workspace }}/midst-editor' }
+        env: { MIDST_EDITOR_SRC: "${{ github.workspace }}/midst-editor" }
         run: npm run build:harness
       - name: run conformance
         working-directory: midst-format
