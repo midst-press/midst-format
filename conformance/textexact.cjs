@@ -1,7 +1,7 @@
 // Independent text oracle. The trajectory check compares the replay against normalise(frame),
 // i.e. against the converter's own parse, so it cannot see anything that parse loses. This
 // compares the CHARACTERS of the source frame with the replay, extracted inertly (no ProseMirror):
-// tags removed, entities decoded, paragraph and <br> boundaries kept as one separator.
+// tags removed, entities decoded, each line start (<p> or <br>) one separator, never collapsed.
 // The one transformation allowed: a line break inside text (\n, \r\n or \r) reads as a space, as in the editor.
 const SEP = ' ';
 const NAMED = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
@@ -15,10 +15,12 @@ const textOf = (html) =>
     html
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/p>)\s+(?=<p\b|$)/gi, '$1')
-      .replace(/<\/?p\b[^>]*>|<br\s*\/?>/gi, SEP)
+      // One separator per line start: every <p> and every <br>. Never collapsed, so the NUMBER
+      // of empty lines (a stanza break) is compared, not just their presence.
+      .replace(/<p\b[^>]*>|<br\s*\/?>/gi, SEP)
       .replace(/<[^>]*>/g, ''),
   )
     .replace(/\r\n?|\n/g, ' ')
-    .replace(new RegExp(`${SEP}+`, 'g'), SEP)
-    .replace(new RegExp(`^${SEP}|${SEP}$`, 'g'), '');
+    // The first line has no line before it.
+    .replace(new RegExp(`^${SEP}`), '');
 module.exports = { textOf };

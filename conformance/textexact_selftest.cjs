@@ -20,6 +20,14 @@ const cases = [
   ['space before first paragraph ignored', '  <p>a</p>\n', '<p>a</p>', true],
   ['space inside a paragraph still counts', '<p>a</p><p> </p><p>b</p>', '<p>a</p><p>b</p>', false],
   ['space-only line kept vs empty line', '<p> </p>', '<p></p>', false],
+  ['empty line dropped', '<p>a</p><p></p><p>b</p>', '<p>a</p><p>b</p>', false],
+  ['two empty lines vs one', '<p>a</p><p></p><p></p><p>b</p>', '<p>a</p><p></p><p>b</p>', false],
+  ['br-only line dropped', '<p>a</p><p><br></p><p>b</p>', '<p>a</p><p>b</p>', false],
+  ['double br vs single', '<p>a<br><br>b</p>', '<p>a<br>b</p>', false],
+  ['leading empty lines dropped', '<p></p><p></p><p>a</p>', '<p>a</p>', false],
+  ['trailing empty line dropped', '<p>a</p><p></p>', '<p>a</p>', false],
+  ['text before first paragraph is a line', 'x<p>a</p>', '<p>x</p><p>a</p>', true],
+  ['empty doc vs one empty line', '', '<p></p>', true],
 ];
 let bad = 0;
 for (const [n, a, b, want] of cases) { const got = eq(a, b); if (got !== want) bad++; console.log(`${got === want ? 'ok ' : 'BAD'} ${n}`); }
