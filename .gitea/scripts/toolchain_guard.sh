@@ -34,8 +34,16 @@ else
   [ "$have" = "$want" ] || violation "node $have is running, $nvmrc says $want"
 fi
 
+# npm is reported, not pinned: on Gitea it is Homebrew's global npm, not the one bundled with Node,
+# so it can change underneath CI. Printing it makes such a change visible in the log.
+if npm_version=$(npm --version 2>&1); then
+  echo "npm -> $(command -v npm) $npm_version"
+else
+  violation "npm did not run: $npm_version"
+fi
+
 if [ "$failures" -gt 0 ]; then
   echo "::error::toolchain guard: $failures violation(s)"
   exit 1
 fi
-echo "bash $BASH_VERSION  $(python3 --version)  $(git --version)  node $(node --version)"
+echo "bash $BASH_VERSION  $(python3 --version)  $(git --version)  node $(node --version)  npm $npm_version"
