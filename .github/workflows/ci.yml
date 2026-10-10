@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
 concurrency:
-  group: ci-${ github.workflow }-${ github.ref }
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
@@ -26,7 +26,9 @@ jobs:
       - name: pre-commit (the same hooks your commit runs)
         run: |
           pip install 'pre-commit==4.6.0'
-          pre-commit run --all-files --show-diff-on-failure
+          # conformance-synthetic needs the harness built from a midst-editor checkout, which this
+          # job does not have. The conformance job below builds it and runs the suite properly.
+          SKIP=conformance-synthetic pre-commit run --all-files --show-diff-on-failure
 
   conformance:
     name: conformance, synthetic corpus
