@@ -41,15 +41,22 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with: { path: midst-format }
-      # The converter under test is midst-editor's real util.ts, so it is checked out from the
-      # sibling repository on this Gitea. Whether the job's own token may read a private sibling in
-      # the same organisation is what this step establishes; the GitHub workflow needs a separate
-      # secret for the same purpose.
+      # The converter under test is midst-editor's real util.ts, from the sibling repository on
+      # this Gitea. The job's own token cannot read a private sibling (measured: "not found"), so
+      # this uses a READ-ONLY deploy key registered on midst-editor alone; it can read that one
+      # repository and nothing else, and pushing with it is refused. No ssh config is assumed: the
+      # port, key and Gitea's host key are all given here, and the host key is pinned rather than
+      # trusted on first use.
       - name: check out midst-editor, whose util.ts is the converter under test
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          repository: The_Kindled/midst-editor
-          path: midst-editor
+        env:
+          DEPLOY_KEY: ${{ secrets.MIDST_EDITOR_DEPLOY_KEY }}
+        run: |
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/editor_key"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/editor_key"
+          printf '%s\n' '[gitea-server]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/VGpxJRKcHAJCSqYHQ+NZNS7v2pibbUelMYqemnO8DOoAU6fngzVz49QPLvYQXy3Rc1W57+cf1MOrzYVJC3unsyIiMGycgQdKBqHAc8+rmBPvGvS+0U28T2F8idZlzfLIa8kt6K7dUkw2l65h5mHxAQ8YHyLv9kgNRVYMzjZmmX4Y1mYdJegyP8IAZUVgKewzw6FVNnJrN0/iomQSfhwYBIoPN4w9cUrKLuIteZX0Rs1FEZbSMy9GxyiH0fRn0X9P/0QO973UwaxlkSEKZY31+Geex1ynCEuulwQGkhhGhmnnaTCTlS9hwHpJ+pcrb0OnVdJj8cxeq1WLyVnZMEtHbu5+LX8ViicW8exEf9VAcJUExgn+itJXU5NceNcZLotDScJXGV1UI/de5TgjuB3WyFQphYdeiuKxwRywtV8fEFzzZRl+t1gSDvDjSU3/DJM4gZm5lARUnClUOW6uRGx6wuryhBeYoJroBzlnHZp+yOlWYdTwrcZG5+wk60R6ETjqOq/zysAg2fZTA2obvTmYlOojYf+nfvIPT0I0FZNPDaY1qqtR8pgJwZX61yHtDEiqHyje+NQUeIvAt+vm7wQ6coYSlle+5zzWuDZzgo15KkXqAZCdgv8al+WRSZKTdGnNer5cB0uZSBSDr9dg95WLX0o+rUYTX9g0ocmcrOpP0Q==' > "$RUNNER_TEMP/known_hosts"
+          export GIT_SSH_COMMAND="ssh -F /dev/null -p 2222 -i $RUNNER_TEMP/editor_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          git clone --quiet --depth 1 stuartswerdloff@gitea-server:The_Kindled/midst-editor.git midst-editor
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version-file: midst-format/.nvmrc
