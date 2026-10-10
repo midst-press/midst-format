@@ -8,6 +8,7 @@
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
     "test": "node conformance/trajectory.cjs fixtures/synthetic",
+    "test:no-text": "node conformance/test_no_text.cjs",
     "conformance": "node conformance/verify_all.cjs",
     "markloss": "node conformance/markloss.cjs"
   },
