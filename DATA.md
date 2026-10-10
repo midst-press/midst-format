@@ -1,6 +1,6 @@
 # Where the poem data lives, and why it is not here
 
-**In this repository specifically:** the conformance suite runs against a *synthetic* corpus committed
+**In this repository specifically:** the conformance suite runs against a _synthetic_ corpus committed
 under `fixtures/synthetic/`, hand-written to exercise each known behaviour. The real corpus is never
 committed; point `MIDST_CORPUS` at it to run `npm run conformance`, and keep that run out of public CI.
 
