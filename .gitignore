@@ -23,6 +23,9 @@ converted/
 # Without this negation the conformance suite ships with no fixtures and tests nothing.
 !fixtures/synthetic/
 !fixtures/synthetic/*.midst.zip
+# ...and the HTML-SHAPE fixtures: hand-written shapes of HTML the old editor saved, no poem.
+!fixtures/html-shapes/
+!fixtures/html-shapes/*.midst.zip
 
 # code-graph
 code-graph.db

@@ -1,0 +1,56 @@
+{
+  "html-shape--bare-br-between-paragraphs": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "midst-editor #15"
+  },
+  "html-shape--blank-line-br": {
+    "differ": 2,
+    "editorMore": 2,
+    "editorFewer": 0,
+    "why": "a blank line <p><br></p> shows as TWO lines in the editor (trailing hard break); midst-editor #15"
+  },
+  "html-shape--div-as-line": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "midst-editor #15"
+  },
+  "html-shape--div-wrapping-paragraphs": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "midst-editor #15"
+  },
+  "html-shape--empty-paragraph-no-br": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "empty <p></p> has zero height in a browser (midst-editor #15)"
+  },
+  "html-shape--nested-paragraphs": {
+    "differ": 1,
+    "editorMore": 0,
+    "editorFewer": 1,
+    "why": "editor shows FEWER lines (midst-editor #15)"
+  },
+  "html-shape--trailing-br": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "a trailing <br> adds a line in the editor, not in a browser; midst-editor #15"
+  },
+  "synthetic--rangy-span": {
+    "differ": 7,
+    "editorMore": 7,
+    "editorFewer": 0,
+    "why": "a selection-marker span outside any paragraph becomes its own paragraph (midst-editor #15)"
+  },
+  "synthetic--tabs": {
+    "differ": 1,
+    "editorMore": 1,
+    "editorFewer": 0,
+    "why": "DEPENDS on the old app's white-space, which is not established: under 'normal' (used here) a tab-only line is zero height, so the editor shows 1 more; under pre-wrap the raw newline line breaks, so the editor shows 1 fewer. midst-editor #17"
+  }
+}

@@ -72,3 +72,8 @@ jobs:
       - name: mark-loss detector
         working-directory: midst-format
         run: MIDST_CORPUS=fixtures/synthetic node conformance/markloss.cjs
+      - name: browser line check (Chromium), fixtures only
+        working-directory: midst-format
+        run: |
+          npx playwright install --with-deps chromium
+          npm run render-lines

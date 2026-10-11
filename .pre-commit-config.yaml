@@ -30,7 +30,7 @@ repos:
           Poem timelapses are the poets' work and must not enter git. A public push cannot be
           withdrawn. Keep them with the archive and point MIDST_CORPUS at it. See DATA.md.
         files: '(\.midst$|\.midst\.zip$|(^|/)static/static/assets/poems/)'
-        exclude: '^fixtures/synthetic/.*\.midst\.zip$' # hand-written, contain no poem
+        exclude: '^fixtures/(synthetic|html-shapes)/.*\.midst\.zip$' # hand-written, contain no poem
 
       - id: forbid-logs
         name: logs must never be committed
