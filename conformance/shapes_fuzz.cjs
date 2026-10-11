@@ -9,7 +9,7 @@
 // A failing document is shrunk to a minimal one, which is printed (it contains no poem text, by construction)
 // and, with --emit DIR, written as a fixture.
 //
-//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--open [class,...]] [--emit DIR]
+//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--history all|append|edit] [--open [class,...]] [--emit DIR]
 // --open adds the primitives whose conversion is a KNOWN open defect (OPEN below): all of them, or the named classes.
 // --open-controls runs each open class alone and requires it to FAIL, so the generator can still reach it. Without it every check must
 // pass; when a defect is fixed, move its primitive out of OPEN so CI guards it.
@@ -45,6 +45,8 @@ for (const k of OPEN_ON) if (!OPEN[k]) (console.error(`unknown open class ${k}; 
 const on = (k) => OPEN_ON.has(k);
 const WITH_OPEN = OPEN_ON.size > 0;
 const EMIT = arg('--emit', null);
+const MODEL = arg('--history', 'all');
+if (!['all', 'append', 'edit'].includes(MODEL)) (console.error('--history must be all, append or edit'), process.exit(2));
 if (!Number.isInteger(SEED) || !Number.isInteger(N) || N < 1) {
   console.error('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
   process.exit(2);
@@ -63,6 +65,8 @@ function rng(seed) {
   const int = (n) => Math.floor(next() * n);
   return { int, pick: (xs) => xs[int(xs.length)], chance: (p) => next() < p };
 }
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
 
 // ---- the document model ---------------------------------------------------------------------------
 // line   {kind:'p', kids:[node], trailingBr:bool} | {kind:'blank'} | {kind:'div', kids, trailingBr}
@@ -101,20 +105,105 @@ function brThenHidden(kids) {
   const tail = flat.slice(flat.lastIndexOf('br') + 1);
   return flat.includes('br') && tail.every((t) => ['mark', 'sp', 'nl', 'wrap'].includes(t)) && tail.some((t) => t === 'mark' || t === 'wrap');
 }
-function genDoc(r) {
-  const lines = [];
-  const n = 1 + r.int(5);
-  while (lines.length < n) {
-    if (r.chance(0.25)) {
-      lines.push({ kind: 'blank' });
-      continue;
-    }
+// Without --open, no line of an open class: not generated, and not reached by a mutation or a shrink step.
+function lineAllowed(l) {
+  if (l.kind === 'blank') return true;
+  if (!l.kids.length) return false;
+  if (!on('emptyLine') && !l.trailingBr && invisible(l.kids)) return false; // OPEN.emptyLine
+  if (!on('hiddenAfterBr') && brThenHidden(l.kids)) return false; // OPEN.hiddenAfterBr
+  return true;
+}
+function genLine(r) {
+  for (;;) {
+    if (r.chance(0.25)) return { kind: 'blank' };
     const l = { kind: on('divLine') && r.chance(0.2) ? 'div' : 'p', kids: genKids(r, 0, 1 + r.int(5)), trailingBr: r.chance(0.3) };
-    if (!on('emptyLine') && !l.trailingBr && invisible(l.kids)) continue; // OPEN.emptyLine
-    if (!on('hiddenAfterBr') && brThenHidden(l.kids)) continue; // OPEN.hiddenAfterBr
-    lines.push(l);
+    if (lineAllowed(l)) return l;
   }
-  return { lines, markFirst: on('markOutside') && r.chance(0.2) }; // OPEN.markOutside
+}
+function genDoc(r) {
+  const n = 1 + r.int(5);
+  return { lines: Array.from({ length: n }, () => genLine(r)), markFirst: on('markOutside') && r.chance(0.2) }; // OPEN.markOutside
+}
+
+// ---- histories: how the document changes between frames -------------------------------------------
+// A case is a list of steps {doc, line}: each step is one frame, `line` its lineNumber (the line being edited).
+//   append  one whole line typed per frame (part 1's only model)
+//   edit    a random walk of insert / delete / edit / type-a-letter / split / join on any line
+const appendCase = (d) => ({ steps: d.lines.map((_, i) => ({ doc: { ...d, lines: d.lines.slice(0, i + 1) }, line: i })) });
+function wordPaths(kids, p = []) {
+  return kids.flatMap((k, j) => (k.t === 'word' ? [p.concat(j)] : k.t === 'wrap' ? wordPaths(k.kids, p.concat(j)) : []));
+}
+const at = (kids, p) => p.slice(1).reduce((n, j) => n.kids[j], kids[p[0]]);
+function mutate(r, d) {
+  const c = clone(d),
+    L = c.lines,
+    k = r.int(L.length),
+    out = [];
+  const textLine = (i) => L[i] && L[i].kind !== 'blank';
+  switch (r.pick(['append', 'insert', 'delete', 'edit', 'edit', 'type', 'type', 'split', 'join'])) {
+    case 'append':
+      L.push(genLine(r));
+      out.push({ doc: c, line: L.length - 1 });
+      break;
+    case 'insert': {
+      const i = r.int(L.length + 1);
+      L.splice(i, 0, genLine(r));
+      out.push({ doc: c, line: i });
+      break;
+    }
+    case 'delete':
+      if (L.length < 2) break;
+      L.splice(k, 1);
+      out.push({ doc: c, line: Math.max(0, k - 1) });
+      break;
+    case 'edit': {
+      if (!textLine(k)) break;
+      const kids = L[k].kids,
+        j = r.int(kids.length);
+      const op = r.pick(['replace', 'insert', 'remove']);
+      if (op === 'replace') kids[j] = genInline(r, 0);
+      else if (op === 'insert') kids.splice(j, 0, genInline(r, 0));
+      else if (kids.length > 1) kids.splice(j, 1);
+      else break;
+      out.push({ doc: c, line: k });
+      break;
+    }
+    case 'type': {
+      // character by character: one frame per letter, all on line k
+      if (!textLine(k)) break;
+      const ws = wordPaths(L[k].kids);
+      if (!ws.length) break;
+      const w = r.pick(ws);
+      for (let t = 1 + r.int(4); t > 0; t--) {
+        at(L[k].kids, w).s += r.pick('abcdefghij'.split(''));
+        out.push({ doc: clone(c), line: k });
+      }
+      break;
+    }
+    case 'split': {
+      // Enter inside a line: it becomes two, the caret on the second
+      if (!textLine(k) || L[k].kind !== 'p' || L[k].kids.length < 2) break;
+      const j = 1 + r.int(L[k].kids.length - 1);
+      L.splice(k, 1, { ...L[k], kids: L[k].kids.slice(0, j), trailingBr: false }, { ...L[k], kids: L[k].kids.slice(j) });
+      out.push({ doc: c, line: k + 1 });
+      break;
+    }
+    case 'join': {
+      // Backspace at the start of line k+1
+      if (!textLine(k) || !textLine(k + 1) || L[k].kind !== 'p' || L[k + 1].kind !== 'p') break;
+      L.splice(k, 2, { kind: 'p', kids: L[k].kids.concat(L[k + 1].kids), trailingBr: L[k + 1].trailingBr });
+      out.push({ doc: c, line: k });
+      break;
+    }
+  }
+  return out.filter((s) => allowed(s.doc));
+}
+function genCase(r) {
+  const d = genDoc(r);
+  if (MODEL === 'append' || (MODEL === 'all' && r.chance(0.3))) return appendCase(d);
+  const steps = [{ doc: d, line: d.lines.length - 1 }];
+  for (let m = 1 + r.int(6); m > 0; m--) steps.push(...mutate(r, steps[steps.length - 1].doc));
+  return { steps };
 }
 
 const MARK = () =>
@@ -153,19 +242,19 @@ function lineHtml(l, i) {
   if (l.kind === 'blank') return `<p data-line-number="${i}"><br></p>`;
   return `<${l.kind} data-line-number="${i}">${kidsHtml(l.kids, l.trailingBr)}</${l.kind}>`;
 }
-const docHtml = (d, upTo) => (d.markFirst ? MARK() : '') + d.lines.slice(0, upTo).map(lineHtml).join('');
+const docHtml = (d) => (d.markFirst ? MARK() : '') + d.lines.map(lineHtml).join('');
 
-// One frame per line typed: the history the converter sees.
-function midstOf(d) {
+// The history the converter sees: one frame per step.
+function midstOf(c) {
   markId = 0;
-  const frames = d.lines.map((_, i) => ({ content: docHtml(d, i + 1), lineNumber: String(i), timestamp: 1600000000000 + i * 1000 }));
+  const frames = c.steps.map((s, i) => ({ content: docHtml(s.doc), lineNumber: String(s.line), timestamp: 1600000000000 + i * 1000 }));
   return { frames, raw: JSON.stringify({ editorTimelineFrames: frames }) };
 }
 
 // ---- the checks -------------------------------------------------------------------------------------
 const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
-async function check(d, R) {
-  const { frames, raw } = midstOf(d);
+async function check(c, R, posStats) {
+  const { frames, raw } = midstOf(c);
   let history;
   try {
     history = JSON.parse(convertMidstFile(raw)).history;
@@ -183,12 +272,28 @@ async function check(d, R) {
     const b = await R.browserLines(src),
       e = await R.editorLines(acc);
     if (b !== e) fails.add(e > b ? 'lines-editorMore' : 'lines-editorFewer');
+    // REPORTED, not gated: Replay scrolls to domAtPos(pos). Which line does the converter's pos land on?
+    if (posStats) {
+      const got = await R.editorLineOfPos(acc, history[i].pos ?? 0),
+        want = Number(frames[i].lineNumber);
+      posStats.frames++;
+      const d = Math.max(-5, Math.min(5, got - want));
+      if (d) (posStats.off++, (posStats.dist[d] = (posStats.dist[d] || 0) + 1));
+    }
   }
   return [...fails].sort();
 }
 
 // ---- shrinking: smallest document that still fails the same way -----------------------------------
-const clone = (x) => JSON.parse(JSON.stringify(x));
+function* caseCandidates(c) {
+  for (let j = 0; j < c.steps.length; j++) if (c.steps.length > 1) yield { steps: c.steps.filter((_, i) => i !== j) };
+  for (let j = 0; j < c.steps.length; j++)
+    for (const d of candidates(c.steps[j].doc)) {
+      const steps = c.steps.slice();
+      steps[j] = { doc: d, line: Math.min(c.steps[j].line, d.lines.length - 1) };
+      yield { steps };
+    }
+}
 function* candidates(d) {
   for (let i = 0; i < d.lines.length; i++) if (d.lines.length > 1) yield { ...clone(d), lines: d.lines.filter((_, j) => j !== i) };
   if (d.markFirst) yield { ...clone(d), markFirst: false };
@@ -232,16 +337,13 @@ function* candidates(d) {
   }
 }
 // Without --open, a shrink step may not produce an open-class line, or the minimal case would blame a known defect.
-const allowed = (d) =>
-  d.lines.every(
-    (l) => l.kind === 'blank' || ((on('emptyLine') || l.trailingBr || !invisible(l.kids)) && (on('hiddenAfterBr') || !brThenHidden(l.kids))),
-  );
-async function shrink(d, sig, R) {
-  let best = d;
+const allowed = (d) => d.lines.length > 0 && d.lines.every(lineAllowed);
+async function shrink(c0, sig, R) {
+  let best = c0;
   for (let changed = true, rounds = 0; changed && rounds < 200; rounds++) {
     changed = false;
-    for (const c of candidates(best)) {
-      if (!allowed(c)) continue;
+    for (const c of caseCandidates(best)) {
+      if (!c.steps.every((s) => allowed(s.doc))) continue;
       if ((await check(c, R)).join() === sig) {
         best = c;
         changed = true;
@@ -286,15 +388,16 @@ async function main() {
   // Controls: a document of a known open class must FAIL and a plain one must PASS, or the checks are inert.
   const bad = { lines: [{ kind: 'p', kids: [{ t: 'br' }, { t: 'mark' }], trailingBr: false }], markFirst: false };
   const good = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: true }, { kind: 'blank' }], markFirst: false };
-  const cb = await check(bad, R),
-    cg = await check(good, R);
+  const cb = await check(appendCase(bad), R),
+    cg = await check(appendCase(good), R);
   if (!cb.length || cg.length) throw new Error(`control failed: known-bad [${cb}] plain [${cg}]`);
   const r = rng(SEED);
   const bySig = new Map();
   let failed = 0;
+  const posStats = { frames: 0, off: 0, dist: {} };
   for (let k = 0; k < N; k++) {
-    const d = genDoc(r);
-    const f = await check(d, R);
+    const d = genCase(r);
+    const f = await check(d, R, posStats);
     if (!f.length) continue;
     failed++;
     const sig = f.join();
@@ -304,12 +407,17 @@ async function main() {
   for (const [sig, v] of bySig) {
     const min = await shrink(v.doc, sig, R);
     const { frames } = midstOf(min);
-    console.log(`\nFAIL [${sig}]  ${v.count} document(s), first #${v.index}; minimal (${frames.length} frame(s)):`);
-    console.log(`  ${JSON.stringify(frames[frames.length - 1].content)}`);
+    console.log(`\nFAIL [${sig}]  ${v.count} case(s), first #${v.index}; minimal (${frames.length} frame(s)):`);
+    for (const f of frames) console.log(`  line ${f.lineNumber}  ${JSON.stringify(f.content)}`);
     if (EMIT) console.log(`  written ${emitFixture(min, `html-shape--fuzz-${sig.replace(/[^a-z]+/g, '-')}-${SEED}`)}`);
   }
   await R.close();
-  console.log(`\n${N - failed} of ${N} documents pass every check   (seed ${SEED}; re-run with --seed ${SEED})`);
+  const dist = Object.entries(posStats.dist)
+    .sort((x, y) => x[0] - y[0])
+    .map(([d, n]) => `${d > 0 ? '+' : ''}${Math.abs(d) === 5 ? `${d}..` : d}: ${n}`)
+    .join(', ');
+  console.log(`\nreplay scroll target (reported, not gated): pos lands on the frame's lineNumber in ${posStats.frames - posStats.off} of ${posStats.frames} frames${dist ? `; lines away (+ = after the edited line): ${dist}` : ''}`);
+  console.log(`${N - failed} of ${N} cases pass every check   (history model ${MODEL}; seed ${SEED}; re-run with --seed ${SEED})`);
   process.exit(failed ? 1 : 0);
 }
 main().catch((e) => {

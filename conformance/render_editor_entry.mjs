@@ -16,3 +16,9 @@ window.renderEditor = (html) => {
   editor = new Editor({ element: el, extensions, content: html, parseOptions: { preserveWhitespace: true } });
   return el.getBoundingClientRect().height;
 };
+// The top-level line (paragraph index) a ProseMirror position falls in, after renderEditor(html): what Replay's
+// domAtPos(pos) scrolls to. Clamped to the document, as a position past the end would throw.
+window.lineOfPos = (pos) => {
+  const doc = editor.state.doc;
+  return doc.resolve(Math.max(0, Math.min(pos, doc.content.size))).index(0);
+};
