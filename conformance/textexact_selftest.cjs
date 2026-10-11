@@ -28,6 +28,12 @@ const cases = [
   ['trailing empty line dropped', '<p>a</p><p></p>', '<p>a</p>', false],
   ['text before first paragraph is a line', 'x<p>a</p>', '<p>x</p><p>a</p>', true],
   ['empty doc vs one empty line', '', '<p></p>', true],
+  ['div is a line, as a browser saves it', 'a<div><br></div>', '<p>a</p><p><br></p>', true],
+  ['div line dropped', 'a<div>b</div>', '<p>ab</p>', false],
+  ['space between divs ignored', '<div>a</div> <div>b</div>', '<p>a</p><p>b</p>', true],
+  ['div wrapping paragraphs is not a line', '<div><p>a</p><p>b</p></div>', '<p>a</p><p>b</p>', true],
+  ['text then a div of paragraphs', 'a<div><p><br></p><p>b</p></div>', '<p>a</p><p><br></p><p>b</p>', true],
+  ['nested wrapping divs', '<div><div><p>a</p></div></div>', '<p>a</p>', true],
 ];
 let bad = 0;
 for (const [n, a, b, want] of cases) { const got = eq(a, b); if (got !== want) bad++; console.log(`${got === want ? 'ok ' : 'BAD'} ${n}`); }
