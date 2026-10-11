@@ -9,3 +9,8 @@ console.log('upstream options :',a.join(' '));
 console.log('harness  options :',b.join(' '));
 console.log('PROVENANCE MATCH :', JSON.stringify(a)===JSON.stringify(b));
 if(JSON.stringify(a)!==JSON.stringify(b)) process.exit(1);
+// The trailing-<br> rule must also be identical: normalise.cjs mirrors util.ts.
+const rx = (t) => (t.match(/TRAILING_BREAK = (\/.*\/gi);/) || [])[1];
+const up = rx(src), here = rx(mine);
+console.log('TRAILING_BREAK MATCH:', !!up && up === here);
+if (!up || up !== here) process.exit(1);
