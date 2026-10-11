@@ -8,8 +8,12 @@
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
     "test": "node conformance/trajectory.cjs fixtures/synthetic",
+    "test:no-text": "node conformance/test_no_text.cjs",
     "conformance": "node conformance/verify_all.cjs",
-    "markloss": "node conformance/markloss.cjs"
+    "markloss": "node conformance/markloss.cjs",
+    "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
+    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
+    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
   },
   "dependencies": {
     "@tiptap/core": "2.5.4",
@@ -20,6 +24,7 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2",
+    "playwright": "1.64.0",
     "prettier": "3.9.10"
   },
   "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have."

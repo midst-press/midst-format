@@ -95,10 +95,26 @@ jobs:
         env:
           MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
         run: npm run build:harness
+      - name: text oracle self-test
+        working-directory: midst-format
+        run: node conformance/textexact_selftest.cjs
       - name: conformance, synthetic corpus only
         working-directory: midst-format
         # The real corpus is poem data and never runs here. See DATA.md.
         run: MIDST_CORPUS=fixtures/synthetic node conformance/verify_all.cjs
+      - name: a failing poem leaves no text in any output
+        working-directory: midst-format
+        run: npm run test:no-text
       - name: mark-loss detector
         working-directory: midst-format
         run: MIDST_CORPUS=fixtures/synthetic node conformance/markloss.cjs
+      - name: browser line check (Chromium), fixtures only
+        working-directory: midst-format
+        run: |
+          npx playwright install chromium
+          npm run render-lines
+      - name: generated shapes (seeded; invented letters only, never poem data)
+        working-directory: midst-format
+        run: |
+          npm run shapes-fuzz
+          npm run shapes-fuzz:open-controls

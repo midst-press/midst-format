@@ -15,5 +15,10 @@ const extensions = [
     strike: false,
   }),
 ];
-const normalise = (html) => generateHTML(generateJSON(html, extensions), extensions);
-module.exports = { extensions, normalise };
+// Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
+// TRAILING_BREAK mirrors midst-editor util.ts (provenance.cjs asserts the two regexes are identical):
+// a <br> that ends a paragraph is not a line, so the converter drops it before parsing.
+const TRAILING_BREAK = /<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/p>)/gi;
+const dropTrailingBreaks = (html) => html.replace(TRAILING_BREAK, '$1');
+const normalise = (html) => generateHTML(generateJSON(dropTrailingBreaks(html), extensions, { preserveWhitespace: true }), extensions);
+module.exports = { extensions, normalise, TRAILING_BREAK, dropTrailingBreaks };
