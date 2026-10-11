@@ -9,7 +9,7 @@
 // A failing document is shrunk to a minimal one, which is printed (it contains no poem text, by construction)
 // and, with --emit DIR, written as a fixture.
 //
-//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--history all|append|edit] [--open [class,...]] [--emit DIR]
+//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--history all|append|edit] [--pos-known E/A/W/N/T] [--open [class,...]] [--emit DIR]
 // --open adds the primitives whose conversion is a KNOWN open defect (OPEN below): all of them, or the named classes.
 // --open-controls runs each open class alone and requires it to FAIL, so the generator can still reach it. Without it every check must
 // pass; when a defect is fixed, move its primitive out of OPEN so CI guards it.
@@ -46,6 +46,10 @@ const on = (k) => OPEN_ON.has(k);
 const WITH_OPEN = OPEN_ON.size > 0;
 const EMIT = arg('--emit', null);
 const MODEL = arg('--history', 'all');
+// A ratchet on the REPORTED scroll measure (midst-editor #20): --pos-known E/A/W/N/T (edited line, another line,
+// whole editor, none, throws) fails when the counts CHANGE,
+// so a converter change that moves the replay scroll target, worse or better, needs an edit here.
+const POS_KNOWN = arg('--pos-known', null);
 if (!['all', 'append', 'edit'].includes(MODEL)) (console.error('--history must be all, append or edit'), process.exit(2));
 if (!Number.isInteger(SEED) || !Number.isInteger(N) || N < 1) {
   console.error('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
@@ -272,13 +276,13 @@ async function check(c, R, posStats) {
     const b = await R.browserLines(src),
       e = await R.editorLines(acc);
     if (b !== e) fails.add(e > b ? 'lines-editorMore' : 'lines-editorFewer');
-    // REPORTED, not gated: Replay scrolls to domAtPos(pos). Which line does the converter's pos land on?
+    // REPORTED, not gated (midst-editor #20): what Replay's scroll does with the converter's pos. It calls
+    // domAtPos(pos).node.scrollIntoView?.(), so: no scroll, the whole editor, or one line (on the edited one, or not).
     if (posStats) {
-      const got = await R.editorLineOfPos(acc, history[i].pos ?? 0),
-        want = Number(frames[i].lineNumber);
+      const t = await R.scrollTarget(acc, history[i].pos ?? 0);
+      const k = typeof t === 'string' ? t : t === Number(frames[i].lineNumber) ? 'edited line' : 'another line';
       posStats.frames++;
-      const d = Math.max(-5, Math.min(5, got - want));
-      if (d) (posStats.off++, (posStats.dist[d] = (posStats.dist[d] || 0) + 1));
+      posStats.dist[k] = (posStats.dist[k] || 0) + 1;
     }
   }
   return [...fails].sort();
@@ -394,7 +398,7 @@ async function main() {
   const r = rng(SEED);
   const bySig = new Map();
   let failed = 0;
-  const posStats = { frames: 0, off: 0, dist: {} };
+  const posStats = { frames: 0, dist: {} };
   for (let k = 0; k < N; k++) {
     const d = genCase(r);
     const f = await check(d, R, posStats);
@@ -412,13 +416,16 @@ async function main() {
     if (EMIT) console.log(`  written ${emitFixture(min, `html-shape--fuzz-${sig.replace(/[^a-z]+/g, '-')}-${SEED}`)}`);
   }
   await R.close();
-  const dist = Object.entries(posStats.dist)
-    .sort((x, y) => x[0] - y[0])
-    .map(([d, n]) => `${d > 0 ? '+' : ''}${Math.abs(d) === 5 ? `${d}..` : d}: ${n}`)
-    .join(', ');
-  console.log(`\nreplay scroll target (reported, not gated): pos lands on the frame's lineNumber in ${posStats.frames - posStats.off} of ${posStats.frames} frames${dist ? `; lines away (+ = after the edited line): ${dist}` : ''}`);
+  const scroll = ['edited line', 'another line', 'editor', 'none', 'throws'].map((k) => `${k} ${posStats.dist[k] || 0}`).join(', ');
+  console.log(`\nreplay scroll (reported, not gated; midst-editor #20), of ${posStats.frames} frames: ${scroll}`);
   console.log(`${N - failed} of ${N} cases pass every check   (history model ${MODEL}; seed ${SEED}; re-run with --seed ${SEED})`);
-  process.exit(failed ? 1 : 0);
+  let posChanged = false;
+  if (POS_KNOWN) {
+    const got = ['edited line', 'another line', 'editor', 'none', 'throws'].map((k) => posStats.dist[k] || 0).join('/');
+    posChanged = got !== POS_KNOWN;
+    console.log(posChanged ? `SCROLL CHANGED: edited/another/editor/none/throws ${got}, known ${POS_KNOWN} (midst-editor #20; update --pos-known with the reason)` : `scroll edited/another/editor/none/throws ${got}, as known`);
+  }
+  process.exit(failed || posChanged ? 1 : 0);
 }
 main().catch((e) => {
   console.error(e && e.message ? e.message : e);

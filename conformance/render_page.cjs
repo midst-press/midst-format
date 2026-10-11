@@ -41,8 +41,8 @@ async function openRenderer() {
       }, h),
     );
   const editorLines = async (h) => lines(await page.evaluate((x) => window.renderEditor(x), h));
-  const editorLineOfPos = async (h, pos) =>
-    page.evaluate(([x, p]) => (window.renderEditor(x), window.lineOfPos(p)), [h, pos]);
+  const scrollTarget = async (h, pos) =>
+    page.evaluate(([x, p]) => (window.renderEditor(x), window.scrollTargetOfPos(p)), [h, pos]);
   // Positive controls: each measurement must be able to tell one line from two.
   for (const [name, f] of [
     ['browser', browserLines],
@@ -52,6 +52,6 @@ async function openRenderer() {
       two = await f('<p>a</p><p>b</p>');
     if (one !== 1 || two !== 2) throw new Error(`${name} control failed: ${one} ${two}`);
   }
-  return { browserLines, editorLines, editorLineOfPos, close: () => browser.close(), SOURCE_WS };
+  return { browserLines, editorLines, scrollTarget, close: () => browser.close(), SOURCE_WS };
 }
 module.exports = { openRenderer };
