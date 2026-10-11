@@ -14,10 +14,12 @@ const textOf = (html) =>
   decode(
     html
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
-      .replace(/(^|<\/p>)\s+(?=<p\b|$)/gi, '$1')
-      // One separator per line start: every <p> and every <br>. Never collapsed, so the NUMBER
+      .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
+      // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
       // of empty lines (a stanza break) is compared, not just their presence.
-      .replace(/<p\b[^>]*>|<br\s*\/?>/gi, SEP)
+      // A <div> that directly wraps another block is a container, not a line of its own.
+      .replace(/<div\b[^>]*>(?=\s*<(?:p|div)\b)/gi, '')
+      .replace(/<(?:p|div)\b[^>]*>|<br\s*\/?>/gi, SEP)
       .replace(/<[^>]*>/g, ''),
   )
     .replace(/\r\n?|\n/g, ' ')
