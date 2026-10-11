@@ -1,0 +1,38 @@
+{
+  "synthetic--rangy-span": {
+    "differ": 7,
+    "why": "a selection-marker span outside any paragraph becomes its own paragraph (midst-editor #15)"
+  },
+  "synthetic--tabs": {
+    "differ": 1,
+    "why": "a tab-only line: zero height in a browser, a line in the editor (midst-editor #17)"
+  },
+  "html-shape--bare-br-between-paragraphs": {
+    "differ": 1,
+    "why": "midst-editor #15"
+  },
+  "html-shape--div-as-line": {
+    "differ": 1,
+    "why": "midst-editor #15"
+  },
+  "html-shape--div-wrapping-paragraphs": {
+    "differ": 1,
+    "why": "midst-editor #15"
+  },
+  "html-shape--empty-paragraph-no-br": {
+    "differ": 1,
+    "why": "empty <p></p> has zero height in a browser (midst-editor #15)"
+  },
+  "html-shape--nested-paragraphs": {
+    "differ": 1,
+    "why": "editor shows FEWER lines (midst-editor #15)"
+  },
+  "html-shape--blank-line-br": {
+    "differ": 2,
+    "why": "a blank line <p><br></p> shows as TWO lines in the editor (trailing hard break); midst-editor #15"
+  },
+  "html-shape--trailing-br": {
+    "differ": 1,
+    "why": "a trailing <br> adds a line in the editor, not in a browser; midst-editor #15"
+  }
+}
