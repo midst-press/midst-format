@@ -5,19 +5,7 @@
     "editorFewer": 0,
     "why": "midst-editor #15"
   },
-  "html-shape--blank-line-br": {
-    "differ": 2,
-    "editorMore": 2,
-    "editorFewer": 0,
-    "why": "a blank line <p><br></p> shows as TWO lines in the editor (trailing hard break); midst-editor #15"
-  },
   "html-shape--div-as-line": {
-    "differ": 1,
-    "editorMore": 1,
-    "editorFewer": 0,
-    "why": "midst-editor #15"
-  },
-  "html-shape--div-wrapping-paragraphs": {
     "differ": 1,
     "editorMore": 1,
     "editorFewer": 0,
@@ -34,12 +22,6 @@
     "editorMore": 0,
     "editorFewer": 1,
     "why": "editor shows FEWER lines (midst-editor #15)"
-  },
-  "html-shape--trailing-br": {
-    "differ": 1,
-    "editorMore": 1,
-    "editorFewer": 0,
-    "why": "a trailing <br> adds a line in the editor, not in a browser; midst-editor #15"
   },
   "synthetic--rangy-span": {
     "differ": 7,
