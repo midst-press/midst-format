@@ -3,6 +3,8 @@
 // compares the CHARACTERS of the source frame with the replay, extracted inertly (no ProseMirror):
 // tags removed, entities decoded, each line start (<p> or <br>) one separator, never collapsed.
 // The one transformation allowed: a line break inside text (\n, \r\n or \r) reads as a space, as in the editor.
+// textOf(html, { editor: true }) reads the EDITOR's HTML (the replay): ProseMirror draws a trailing hard break
+// as a line, so the browser rule that drops one does not apply there.
 const SEP = ' ';
 const NAMED = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 const decode = (s) =>
@@ -10,12 +12,12 @@ const decode = (s) =>
     if (e[0] === '#') return String.fromCodePoint(e[1] === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
     return Object.hasOwn(NAMED, e) ? NAMED[e] : m;
   });
-const textOf = (html) =>
+// A <br> that ends a paragraph or div is not drawn by a browser, so it is not a line. (Browser
+// semantics, so p AND div; the converter's own rule is p only, for the editor's sake.)
+const dropUndrawnBreaks = (html) => html.replace(/<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/(?:p|div)>)/gi, '$1');
+const textOf = (html, { editor = false } = {}) =>
   decode(
-    html
-      // A <br> that ends a paragraph or div is not drawn by a browser, so it is not a line. (Browser
-      // semantics, so p AND div; the converter's own rule is p only, for the editor's sake.)
-      .replace(/<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/(?:p|div)>)/gi, '$1')
+    (editor ? html : dropUndrawnBreaks(html))
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER

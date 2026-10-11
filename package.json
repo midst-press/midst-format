@@ -11,7 +11,9 @@
     "test:no-text": "node conformance/test_no_text.cjs",
     "conformance": "node conformance/verify_all.cjs",
     "markloss": "node conformance/markloss.cjs",
-    "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json"
+    "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
+    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
+    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
   },
   "dependencies": {
     "@tiptap/core": "2.5.4",

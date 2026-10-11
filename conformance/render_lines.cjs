@@ -18,23 +18,11 @@ const fs = require('fs'),
   path = require('path'),
   os = require('os');
 const { execFileSync } = require('child_process');
-const { chromium } = require('playwright');
-const esbuild = require('esbuild');
 // The ACTUAL converter (built from midst-editor's util.ts by build:harness), replayed frame by frame:
 // the editor is shown what conversion produced, not a re-parse of the source.
 const { convertMidstFile } = require('../out/converter.cjs');
+const { openRenderer } = require('./render_page.cjs');
 const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
-
-const LINE = 20;
-// The old app's white-space on the editing area is not established: its stylesheet sets none that we found.
-// The default 'normal' is used; MIDST_SOURCE_WHITE_SPACE=pre-wrap runs the browser side the other way.
-const SOURCE_WS = process.env.MIDST_SOURCE_WHITE_SPACE || 'normal';
-const CSS = `* { margin: 0; padding: 0; border: 0; }
-#c { white-space: ${SOURCE_WS}; }
-#c, #e { width: 100000px; font: 16px/${LINE}px monospace; }
-/* !important beats inline style="line-height/font-size" in old frames, which would otherwise skew height/20 */
-#c *, #e * { line-height: ${LINE}px !important; font-size: 16px !important; }
-#e .ProseMirror { outline: none; }`;
 
 function framesOf(zip) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'render-'));
@@ -78,31 +66,7 @@ async function main() {
     console.error(`no .midst.zip files in ${dir}`);
     process.exit(2);
   }
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  const pmCss = fs.readFileSync(require.resolve('prosemirror-view/style/prosemirror.css'), 'utf8');
-  const bundle = esbuild.buildSync({
-    entryPoints: [path.join(__dirname, 'render_editor_entry.mjs')],
-    bundle: true,
-    format: 'iife',
-    write: false,
-    logLevel: 'error',
-  }).outputFiles[0].text;
-  await page.setContent(`<!doctype html><style>${pmCss}\n${CSS}</style><div id="c"></div><div id="e"></div>`);
-  await page.addScriptTag({ content: bundle });
-  const editorHeight = async (h) => page.evaluate((x) => window.renderEditor(x), h);
-  // Positive control: the measurement must be able to tell one line from two.
-  const probe = async (h) => page.evaluate((x) => {
-    const c = document.getElementById('c');
-    c.innerHTML = x;
-    return c.getBoundingClientRect().height;
-  }, h);
-  const one = await probe('<p>a</p>'),
-    two = await probe('<p>a</p><p>b</p>');
-  if (Math.round(one / LINE) !== 1 || Math.round(two / LINE) !== 2) throw new Error(`control failed: ${one} ${two}`);
-  const e1 = await editorHeight('<p>a</p>'),
-    e2 = await editorHeight('<p>a</p><p>b</p>');
-  if (Math.round(e1 / LINE) !== 1 || Math.round(e2 / LINE) !== 2) throw new Error(`editor control failed: ${e1} ${e2}`);
+  const r = await openRenderer();
 
   // KNOWN differences, a ratchet: --known FILE maps fixture name -> expected differing-frame count.
   // Any count that CHANGES fails, so a regression and a fix both demand an edit here, with a reason.
@@ -116,8 +80,8 @@ async function main() {
       more = 0,
       fewer = 0;
     for (const f of frames) {
-      const b = Math.round((await probe(f.content)) / LINE);
-      const e = Math.round((await editorHeight(f.converted)) / LINE);
+      const b = await r.browserLines(f.content);
+      const e = await r.editorLines(f.converted);
       if (b !== e) {
         diff++;
         if (e > b) more++;
@@ -134,8 +98,8 @@ async function main() {
     const mark = known && got !== want ? ` UNEXPECTED (known differ/more/fewer: ${want})` : known && diff ? ' (known)' : '';
     console.log(`${diff ? 'DIFF' : 'SAME'} ${name.padEnd(44)} frames:${frames.length} differ:${diff} editorMore:${more} editorFewer:${fewer}${mark}`);
   }
-  await browser.close();
-  console.log(`\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser (source white-space: ${SOURCE_WS})`);
+  await r.close();
+  console.log(`\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser (source white-space: ${r.SOURCE_WS})`);
   if (known) console.log(`${unexpected} unexpected against ${process.argv[ki + 1]}`);
   process.exit((known ? unexpected : bad) ? 1 : 0);
 }
