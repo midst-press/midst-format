@@ -13,6 +13,9 @@ const decode = (s) =>
 const textOf = (html) =>
   decode(
     html
+      // A <br> that ends a paragraph or div is not drawn by a browser, so it is not a line. (Browser
+      // semantics, so p AND div; the converter's own rule is p only, for the editor's sake.)
+      .replace(/<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/(?:p|div)>)/gi, '$1')
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
