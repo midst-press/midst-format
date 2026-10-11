@@ -8,7 +8,7 @@
 //
 //   browser lines  the frame's HTML in a very wide box, every margin and padding 0, line-height 20px:
 //                  height / 20. Nothing wraps, so the count is lines, not layout.
-//   editor lines   the CONVERTED frame loaded into a real TipTap editor (same extensions as midst-editor,
+//   editor lines   the CONVERTED frame (convertMidstFile's history, replayed) loaded into a real TipTap editor (same extensions as midst-editor,
 //                  ProseMirror's own CSS) in the same page, measured the same way. Rendered, not modelled.
 //
 // Prints counts and fixture names only, never frame content. Exit 1 on any difference.
@@ -20,12 +20,16 @@ const fs = require('fs'),
 const { execFileSync } = require('child_process');
 const { chromium } = require('playwright');
 const esbuild = require('esbuild');
-const { normalise } = require('./normalise.cjs');
+// The ACTUAL converter (built from midst-editor's util.ts by build:harness), replayed frame by frame:
+// the editor is shown what conversion produced, not a re-parse of the source.
+const { convertMidstFile } = require('../out/converter.cjs');
+const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
 
 const LINE = 20;
 const CSS = `* { margin: 0; padding: 0; border: 0; }
 #c, #e { width: 100000px; font: 16px/${LINE}px monospace; }
-#c *, #e * { line-height: ${LINE}px; }
+/* !important beats inline style="line-height/font-size" in old frames, which would otherwise skew height/20 */
+#c *, #e * { line-height: ${LINE}px !important; font-size: 16px !important; }
 #e .ProseMirror { outline: none; }`;
 
 function framesOf(zip) {
@@ -34,7 +38,13 @@ function framesOf(zip) {
     execFileSync('unzip', ['-q', '-j', '-o', zip, '-x', '__MACOSX/*', '-d', tmp], { stdio: 'ignore' });
     const found = fs.readdirSync(tmp).filter((n) => n.endsWith('.midst') && !n.startsWith('._'));
     if (found.length !== 1) throw new Error(`expected 1 .midst entry, found ${found.length}`);
-    return JSON.parse(fs.readFileSync(path.join(tmp, found[0]), 'utf8')).editorTimelineFrames;
+    const raw = fs.readFileSync(path.join(tmp, found[0]), 'utf8');
+    const frames = JSON.parse(raw).editorTimelineFrames;
+    const { history } = JSON.parse(convertMidstFile(raw));
+    let acc = '';
+    const converted = history.map((c) => (acc = step(acc, c)));
+    if (converted.length !== frames.length) throw new Error(`history ${converted.length} != frames ${frames.length}`);
+    return frames.map((f, i) => ({ content: f.content, converted: converted[i] }));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -103,7 +113,7 @@ async function main() {
       fewer = 0;
     for (const f of frames) {
       const b = Math.round((await probe(f.content)) / LINE);
-      const e = Math.round((await editorHeight(normalise(f.content))) / LINE);
+      const e = Math.round((await editorHeight(f.converted)) / LINE);
       if (b !== e) {
         diff++;
         if (e > b) more++;
