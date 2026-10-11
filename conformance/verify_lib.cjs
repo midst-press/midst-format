@@ -78,7 +78,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       acc = step(acc, history[i]);
       const exp = normalise(frames[i].content);
       // Independent of the converter's parse: the characters of the SOURCE frame against the replay.
-      if (textOf(acc) !== textOf(frames[i].content)) textBad++;
+      if (textOf(acc, { editor: true }) !== textOf(frames[i].content)) textBad++;
       if (acc !== exp) {
         bad++;
         // Lengths and hashes let two local runs be compared. They go to VERIFICATION.json only and are

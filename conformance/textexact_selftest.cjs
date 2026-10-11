@@ -1,6 +1,7 @@
 // Each case must give its stated verdict, so the oracle can say both "equal" and "lost".
 const { textOf } = require('./textexact.cjs');
-const eq = (a, b) => textOf(a) === textOf(b);
+// A fifth element 'editor' reads b as the editor's HTML (the replay), as verify_lib does.
+const eq = (a, b, side) => textOf(a) === textOf(b, { editor: side === 'editor' });
 const cases = [
   ['tab collapsed', '<p>a\tb</p>', '<p>a b</p>', false],
   ['lead tab dropped', '<p>\ta</p>', '<p>a</p>', false],
@@ -37,7 +38,11 @@ const cases = [
   ['div wrapping paragraphs is not a line', '<div><p>a</p><p>b</p></div>', '<p>a</p><p>b</p>', true],
   ['text then a div of paragraphs', 'a<div><p><br></p><p>b</p></div>', '<p>a</p><p><br></p><p>b</p>', true],
   ['nested wrapping divs', '<div><div><p>a</p></div></div>', '<p>a</p>', true],
+  // The editor draws a trailing hard break, so its <p><br></p> is two lines, like the browser's <p><br><br></p>.
+  ['editor trailing hard break is a line', '<p><br><br></p>', '<p><br></p>', true, 'editor'],
+  ['editor trailing hard break is not nothing', '<p><br><br></p>', '<p></p>', false, 'editor'],
+  ['editor blank line', '<p><br></p>', '<p></p>', true, 'editor'],
 ];
 let bad = 0;
-for (const [n, a, b, want] of cases) { const got = eq(a, b); if (got !== want) bad++; console.log(`${got === want ? 'ok ' : 'BAD'} ${n}`); }
+for (const [n, a, b, want, side] of cases) { const got = eq(a, b, side); if (got !== want) bad++; console.log(`${got === want ? 'ok ' : 'BAD'} ${n}`); }
 process.exit(bad ? 1 : 0);

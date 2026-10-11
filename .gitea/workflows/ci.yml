@@ -113,3 +113,8 @@ jobs:
         run: |
           npx playwright install chromium
           npm run render-lines
+      - name: generated shapes (seeded; invented letters only, never poem data)
+        working-directory: midst-format
+        run: |
+          npm run shapes-fuzz
+          npm run shapes-fuzz:open-controls
