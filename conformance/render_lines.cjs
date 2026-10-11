@@ -26,7 +26,11 @@ const { convertMidstFile } = require('../out/converter.cjs');
 const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
 
 const LINE = 20;
+// The old app's white-space on the editing area is not established: its stylesheet sets none that we found.
+// The default 'normal' is used; MIDST_SOURCE_WHITE_SPACE=pre-wrap runs the browser side the other way.
+const SOURCE_WS = process.env.MIDST_SOURCE_WHITE_SPACE || 'normal';
 const CSS = `* { margin: 0; padding: 0; border: 0; }
+#c { white-space: ${SOURCE_WS}; }
 #c, #e { width: 100000px; font: 16px/${LINE}px monospace; }
 /* !important beats inline style="line-height/font-size" in old frames, which would otherwise skew height/20 */
 #c *, #e * { line-height: ${LINE}px !important; font-size: 16px !important; }
@@ -122,13 +126,16 @@ async function main() {
     }
     if (diff) bad++;
     const name = label(z, i);
-    const want = known ? (known[name]?.differ ?? 0) : 0;
-    if (known && diff !== want) unexpected++;
-    const mark = known && diff !== want ? ` UNEXPECTED (known: ${want})` : known && diff ? ' (known)' : '';
+    // Direction matters as much as count: a flip from editorMore to editorFewer is a different defect.
+    const k = (known && known[name]) || { differ: 0, editorMore: 0, editorFewer: 0 };
+    const want = `${k.differ}/${k.editorMore ?? 0}/${k.editorFewer ?? 0}`;
+    const got = `${diff}/${more}/${fewer}`;
+    if (known && got !== want) unexpected++;
+    const mark = known && got !== want ? ` UNEXPECTED (known differ/more/fewer: ${want})` : known && diff ? ' (known)' : '';
     console.log(`${diff ? 'DIFF' : 'SAME'} ${name.padEnd(44)} frames:${frames.length} differ:${diff} editorMore:${more} editorFewer:${fewer}${mark}`);
   }
   await browser.close();
-  console.log(`\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser`);
+  console.log(`\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser (source white-space: ${SOURCE_WS})`);
   if (known) console.log(`${unexpected} unexpected against ${process.argv[ki + 1]}`);
   process.exit((known ? unexpected : bad) ? 1 : 0);
 }
