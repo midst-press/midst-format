@@ -26,13 +26,20 @@ renders the nearest thing it can.
 
 **A draft marker** is `{"index": i, "name": "...", "defaultName": "Draft n"}`. `index` is a 0-based
 position in `history`: the marker sits at the state reached by applying `history[0..i]`. That is B's
-`timelineIndex` unchanged, because the converter emits exactly one change per B frame (54 of 54
-archived poems). `name` is what the poet called the draft and `defaultName` is what the editor
-suggested. `0 <= index < history.length`; a reader drops an out-of-range marker rather than rejecting the
-file. Order is the file's order.
+`timelineIndex` unchanged. `name` is what the poet called the draft and `defaultName` is what the editor
+suggested. Order is the file's order.
 
-⚠️ **A marker's `name` is the poet's own words.** It is poem content under DATA.md: never printed,
-logged or committed. Conformance tools compare it by hash.
+**The converter MUST emit exactly one `history` entry per B frame**, so that `history[i]` produces B
+frame `i` and a marker's index needs no translation. It holds for 54 of 54 archived poems, and the
+conformance run checks it (below).
+
+**An out-of-range marker** (`index < 0` or `index >= history.length`) is **kept**: a reader does not
+show it, does not reject the file, and a writer writes it back unchanged. Dropping it would make an
+ordinary save delete a draft the poet made.
+
+⚠️ **`name`, `defaultName`, `title` and `author` are poem data under DATA.md**: never printed, logged
+or committed. A title can identify an unpublished poem, and a marker name is the poet's own words.
+Conformance tools compare them by hash.
 
 ## Absent and unknown
 
@@ -54,8 +61,9 @@ logged or committed. Conformance tools compare it by hash.
 
 ## Conformance
 
-The real-corpus run fails a poem whose `meta` differs from its B source in any field. Names are compared
-by hash. A control mutates one copied field and must be reported, or the check proves nothing.
+The real-corpus run fails a poem whose `meta` differs from its B source in any field, or whose `history`
+length differs from its B frame count. The string fields above are compared by hash. A control mutates
+one copied field and must be reported, or the check proves nothing.
 
 ## Open, not settled here
 
