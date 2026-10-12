@@ -1,0 +1,7 @@
+// Unit tests: the suite's own self-tests. The conformance runs (verify_all, render_lines, shapes_fuzz,
+// markloss, coverage) are Node scripts run against a corpus, and are not collected here.
+module.exports = {
+  testEnvironment: 'node',
+  testMatch: ['<rootDir>/conformance/**/*.test.cjs'],
+  coverageProvider: 'v8',
+};

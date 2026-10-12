@@ -54,6 +54,6 @@ repos:
       - id: no-text-on-failure
         name: a failing poem leaves no text in any output
         language: system
-        entry: node conformance/test_no_text.cjs
+        entry: npx --no-install jest conformance/no_text.test.cjs
         pass_filenames: false
         files: "^conformance/"

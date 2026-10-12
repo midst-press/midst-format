@@ -23,7 +23,7 @@ const zips = [];
 zips.sort();
 const rows = [];
 // What is printed and recorded for a poem that fails is an index, counts, hashes and an error class,
-// never text. The rule and its reasons are at the top of verify_lib.cjs; test_no_text.cjs holds it.
+// never text. The rule and its reasons are at the top of verify_lib.cjs; no_text.test.cjs holds it.
 zips.forEach((zip, i) => {
   const r = verifyZip(zip, i + 1, { convertMidstFile, normalise, outDir: OUT });
   rows.push(r);

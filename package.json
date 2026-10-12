@@ -7,8 +7,8 @@
   "scripts": {
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
-    "test": "node conformance/trajectory.cjs fixtures/synthetic",
-    "test:no-text": "node conformance/test_no_text.cjs",
+    "test": "jest",
+    "trajectory": "node conformance/trajectory.cjs",
     "conformance": "node conformance/verify_all.cjs",
     "conformance:coverage": "node conformance/coverage.cjs",
     "markloss": "node conformance/markloss.cjs",
@@ -26,6 +26,7 @@
   "devDependencies": {
     "c8": "12.0.0",
     "esbuild": "0.28.2",
+    "jest": "30.5.2",
     "playwright": "1.64.0",
     "prettier": "3.9.10"
   },
