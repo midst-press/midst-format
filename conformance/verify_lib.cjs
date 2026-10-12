@@ -95,6 +95,10 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
     const parsed = JSON.parse(old);
     const frames = parsed.editorTimelineFrames;
     if (!Array.isArray(frames)) throw new ConformanceError('NO_FRAMES_ARRAY', Object.keys(parsed).length);
+    // Every B file the old editor wrote has a meta object (54 of 54 archived). Without one, the expected
+    // meta is {} and a converter that reads the wrong place would pass against it (clement-7074f29f).
+    if (!parsed.meta || typeof parsed.meta !== 'object' || Array.isArray(parsed.meta))
+      throw new ConformanceError('NO_B_META', Object.keys(parsed).length);
     stage = 'convert';
     const converted = convertMidstFile(old);
     const { text, history, meta } = JSON.parse(converted);

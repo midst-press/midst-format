@@ -26,7 +26,8 @@ const MARK = {
   meta: 'MARZIPANMETAMARK', // in a title and a draft marker's name (docs/META.md: poem data)
 };
 const FRAMES = ['<p>a</p>', `<p>a ${MARK.frame}</p>`, `<p>a ${MARK.frame} b</p>`, `<p>a ${MARK.frame} b c</p>`];
-const B = (frames) => JSON.stringify({ editorTimelineFrames: frames.map((content, i) => ({ content, lineNumber: '0', timestamp: i })) });
+const B = (frames) =>
+  JSON.stringify({ editorTimelineFrames: frames.map((content, i) => ({ content, lineNumber: '0', timestamp: i })), meta: {} });
 
 // name -> { entries: {entry name: content}, convert: 'ok' | 'corrupt' | 'throw' }, or raw bytes for a broken zip
 const CASES = {
