@@ -32,6 +32,7 @@ It also gives `midst-web` a documented format to read, rather than reverse-engin
     C   {"text":"<p>...</p>","history":[{"front":0,"inserted":"a","end":0,"t":"...","pos":12}]}
         The current format. Final text plus the edit list that produced it, so the whole
         trajectory is reconstructible without storing every state.
+        Optional "meta" carries font, size and draft markers: see docs/META.md.
 
 `convertMidstFile` handles **B to C**. Nothing handles A. `Prosperity` exists in both A and B, which
 makes that single pair the only worked example available if A ever has to be converted.
