@@ -1,4 +1,6 @@
 // Each case must give its stated verdict, so the oracle can say both "equal" and "lost".
+//
+//   npm test
 const { textOf } = require('./textexact.cjs');
 // A fifth element 'editor' reads b as the editor's HTML (the replay), as verify_lib does.
 const eq = (a, b, side) => textOf(a) === textOf(b, { editor: side === 'editor' });
@@ -43,6 +45,14 @@ const cases = [
   ['editor trailing hard break is not nothing', '<p><br><br></p>', '<p></p>', false, 'editor'],
   ['editor blank line', '<p><br></p>', '<p></p>', true, 'editor'],
 ];
-let bad = 0;
-for (const [n, a, b, want, side] of cases) { const got = eq(a, b, side); if (got !== want) bad++; console.log(`${got === want ? 'ok ' : 'BAD'} ${n}`); }
-process.exit(bad ? 1 : 0);
+// One argument per case: a row shorter than the callback's parameter list makes Jest read the spare
+// parameter as its `done` callback, and the test then waits for a call that never comes.
+test.each(cases.map((row) => [row[0], row]))('%s', (_name, [, a, b, want, side]) => {
+  expect(eq(a, b, side)).toBe(want);
+});
+
+// A table that lost its rows would pass by running nothing.
+test('the table holds both verdicts', () => {
+  expect(cases.filter((c) => c[3] === true).length).toBeGreaterThan(0);
+  expect(cases.filter((c) => c[3] === false).length).toBeGreaterThan(0);
+});
