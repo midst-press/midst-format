@@ -26,6 +26,8 @@ try {
   bundle: true, platform: 'node', format: 'cjs',
   outfile: path.join(here,'..','out','converter.cjs'),
   plugins: [plugin], logLevel: 'info', metafile: true,
+  // A source map lets coverage of this bundle be reported against midst-editor's util.ts (coverage.cjs).
+  sourcemap: true,
   external: ['@tiptap/*', 'node-html-parser'],
   });
 } catch (e) {

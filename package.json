@@ -10,6 +10,7 @@
     "test": "node conformance/trajectory.cjs fixtures/synthetic",
     "test:no-text": "node conformance/test_no_text.cjs",
     "conformance": "node conformance/verify_all.cjs",
+    "conformance:coverage": "node conformance/coverage.cjs",
     "markloss": "node conformance/markloss.cjs",
     "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
     "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000 --pos-known 5087/1034/7960/3821/0",
@@ -23,6 +24,7 @@
     "node-html-parser": "6.1.13"
   },
   "devDependencies": {
+    "c8": "12.0.0",
     "esbuild": "0.28.2",
     "playwright": "1.64.0",
     "prettier": "3.9.10"
