@@ -20,7 +20,7 @@
     "@tiptap/core": "2.5.4",
     "@tiptap/html": "2.5.4",
     "@tiptap/pm": "2.5.4",
-    "@tiptap/starter-kit": "2.5.4",
+    "@tiptap/starter-kit": "3.31.4",
     "node-html-parser": "6.1.13"
   },
   "devDependencies": {
