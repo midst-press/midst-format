@@ -35,6 +35,8 @@ fs.writeFileSync(
 );
 const s = summarise(rows);
 console.log(`\nPASS ${s.ok}   FAIL ${s.bad}   ERROR ${s.err}   of ${s.total}`);
+// On its own line: tools/dogfood_corpus.sh in midst-editor anchors a pattern at the end of the PASS line.
+console.log(`meta fields compared: ${s.metaFields}`);
 console.log(
   `controls fired: ${s.ctl}/${s.ctlN}  (a poem whose control did not fire has an INSENSITIVE check and its PASS means nothing)`,
 );
