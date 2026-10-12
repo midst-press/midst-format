@@ -16,3 +16,21 @@ window.renderEditor = (html) => {
   editor = new Editor({ element: el, extensions, content: html, parseOptions: { preserveWhitespace: true } });
   return el.getBoundingClientRect().height;
 };
+// What Replay does with pos, after renderEditor(html): editor.view.domAtPos(pos).node.scrollIntoView?.().
+// Returns the top-level line index that scrolls into view, or a string: 'none' (a Text node: no
+// scrollIntoView, nothing moves), 'editor' (the editor element itself: the whole poem is centred),
+// 'throws' (domAtPos raised; Replay's effect would throw).
+window.scrollTargetOfPos = (pos) => {
+  let node;
+  try {
+    ({ node } = editor.view.domAtPos(pos));
+  } catch (e) {
+    return 'throws';
+  }
+  if (!node || typeof node.scrollIntoView !== 'function') return 'none';
+  const root = editor.view.dom;
+  if (node === root) return 'editor';
+  let n = node;
+  while (n && n.parentNode !== root) n = n.parentNode;
+  return n ? Array.prototype.indexOf.call(root.childNodes, n) : 'none';
+};
