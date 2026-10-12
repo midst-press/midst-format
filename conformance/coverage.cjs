@@ -12,11 +12,13 @@
 // raw figure credits code that never ran. This script takes the bundled lines from the source map and
 // reports those; lines outside the bundle are reported as NOT covered, because conformance never runs them.
 //
-// Writes coverage/converter-istanbul.json (istanbul format, corrected the same way) for a merged report.
+// Writes coverage/converter-istanbul.json (istanbul format, corrected the same way) for a merged report, and
+// coverage/converter-util.sha256, the hash of the util.ts it measured.
 // Exit: 0, or 1 when a control fails, or 2 on a usage or harness error.
 const fs = require('fs'),
   os = require('os'),
-  path = require('path');
+  path = require('path'),
+  crypto = require('crypto');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
@@ -177,6 +179,12 @@ function main() {
   const outFile = path.join(ROOT, 'coverage', 'converter-istanbul.json');
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify({ [fixed.path]: fixed }));
+  // The sha256 of the util.ts that was MEASURED: the text esbuild bundled (the source map's sourcesContent),
+  // not the file on disk now, which may have changed since build:harness (clement-7074f29f). midst-editor's
+  // merge compares it with its own util.ts and leaves this layer out on a mismatch.
+  if (!map.sourcesContent || typeof map.sourcesContent[si] !== 'string') throw new Error('the bundle source map has no sourcesContent for util.ts');
+  const utilSha = crypto.createHash('sha256').update(map.sourcesContent[si], 'utf8').digest('hex');
+  fs.writeFileSync(path.join(path.dirname(outFile), 'converter-util.sha256'), `${utilSha}  src/main/util.ts\n`);
   console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out)`);
 
   // CONTROLS, on the synthetic corpus: the instrument must be able to say "not covered".
