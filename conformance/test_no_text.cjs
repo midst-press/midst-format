@@ -23,6 +23,7 @@ const MARK = {
   key: 'KUMQUATKEYMARK', // in a JSON key of a file with no frames array
   thrown: 'OBSIDIANTHROWNMARK', // in the message of an exception the converter throws
   object: 'JACARANDAOBJECTMARK', // in the zip's own file name
+  meta: 'MARZIPANMETAMARK', // in a title and a draft marker's name (docs/META.md: poem data)
 };
 const FRAMES = ['<p>a</p>', `<p>a ${MARK.frame}</p>`, `<p>a ${MARK.frame} b</p>`, `<p>a ${MARK.frame} b c</p>`];
 const B = (frames) => JSON.stringify({ editorTimelineFrames: frames.map((content, i) => ({ content, lineNumber: '0', timestamp: i })) });
@@ -39,6 +40,20 @@ const CASES = {
   'short-frame': { entries: { 'inner.midst': B(['<p>a</p>', '<p>cat</p>', '<p>cat sat</p>']) }, convert: 'corrupt' },
   'long-history': { entries: { 'inner.midst': B(FRAMES) }, convert: 'extra' },
   'broken-zip': { raw: 'this is not a zip archive' },
+  // A title and a marker name are poem data. A converter that drops meta must fail without either
+  // reaching any output.
+  'meta-dropped': {
+    entries: {
+      'inner.midst': JSON.stringify({
+        ...JSON.parse(B(FRAMES)),
+        meta: {
+          editorTitle: `${MARK.meta} title`,
+          editorDraftMarkers: [{ timelineIndex: 1, name: `${MARK.meta} draft`, defaultName: 'Draft 1' }],
+        },
+      }),
+    },
+    convert: 'nometa',
+  },
 };
 const zipName = (c) => `synthetic--${MARK.object}-${c}.midst.zip`;
 
@@ -53,7 +68,9 @@ function child(dir) {
     const text = frames[frames.length - 1];
     if (mode === 'corrupt') history[1] = { ...history[1], inserted: history[1].inserted + 'X' };
     if (mode === 'extra') history.push({ front: 0, inserted: text, end: 0 });
-    return JSON.stringify({ text, history });
+    // The stand-in writes meta as docs/META.md says a converter must; B here has none, so it is empty.
+    if (mode === 'nometa') return JSON.stringify({ text, history });
+    return JSON.stringify({ text, history, meta: {} });
   };
   const rows = Object.keys(CASES).map((c, i) =>
     verifyZip(path.join(dir, zipName(c)), i + 1, { convertMidstFile: converter(CASES[c].convert), normalise, outDir: path.join(dir, 'out') }),
@@ -114,6 +131,8 @@ function parent() {
     assert.strictEqual(by['no-frames'].line, 'ERR  #05  stage:parse class:ConformanceError code:NO_FRAMES_ARRAY count:1');
     assert.strictEqual(by['converter-throws'].line, 'ERR  #06  stage:convert class:Error');
     assert.match(by['broken-zip'].line, /^ERR {2}#09 {2}stage:list class:Error exit:\d+$/);
+    assert.match(by['meta-dropped'].line, /^FAIL #10 .* meta:NO /);
+    assert.ok(has(CASES['meta-dropped'].entries['inner.midst'], MARK.meta), 'control: the meta marker is in the B file');
 
     // THE EXIT STATUS. A failing run, an unfired control and an empty corpus must all be non-zero.
     assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(dir, 'exit.json'), 'utf8')), [1, 0, 1, 1], 'exit status');

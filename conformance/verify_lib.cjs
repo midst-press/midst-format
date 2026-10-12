@@ -36,6 +36,36 @@ function describeError(e, stage) {
   return d;
 }
 
+// docs/META.md, written from the spec rather than from the converter, so the two are decorrelated:
+// what format C's meta must hold, given format B's.
+const META_FIELDS = {
+  editorFontFamily: 'fontFamily',
+  editorFontSize: 'fontSize',
+  editorHighestEverDraftNumber: 'highestDraftNumber',
+  editorTitle: 'title',
+  editorAuthor: 'author',
+};
+function expectedMeta(b = {}) {
+  const m = {};
+  for (const [from, to] of Object.entries(META_FIELDS)) if (from in b) m[to] = b[from];
+  if (Array.isArray(b.editorDraftMarkers))
+    m.draftMarkers = b.editorDraftMarkers.map((mk) =>
+      Object.fromEntries(Object.entries(mk).map(([k, v]) => [k === 'timelineIndex' ? 'index' : k, v])),
+    );
+  return m;
+}
+// Key order must not matter, so compare a canonical form. Titles and marker names are poem data: only
+// whether the two agree is ever recorded.
+const canon = (v) =>
+  Array.isArray(v)
+    ? `[${v.map(canon).join(',')}]`
+    : v && typeof v === 'object'
+      ? `{${Object.keys(v)
+          .sort()
+          .map((k) => `${JSON.stringify(k)}:${canon(v[k])}`)
+          .join(',')}}`
+      : JSON.stringify(v);
+
 // Verify one zip. `index` is its 1-based position in the sorted archive listing, and is how a failing
 // poem is named in anything printed. Returns the row; writes the conversion to outDir on success.
 function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
@@ -67,8 +97,15 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
     if (!Array.isArray(frames)) throw new ConformanceError('NO_FRAMES_ARRAY', Object.keys(parsed).length);
     stage = 'convert';
     const converted = convertMidstFile(old);
-    const { text, history } = JSON.parse(converted);
+    const { text, history, meta } = JSON.parse(converted);
     stage = 'verify';
+    // META.md: meta copies B's presentation fields unchanged, and history has one entry per B frame.
+    const want = canon(expectedMeta(parsed.meta));
+    const metaOk = meta !== undefined && canon(meta) === want;
+    const histLenOk = history.length === frames.length;
+    // Control: the comparison must be able to fail. Change one copied field and it must disagree.
+    const mutated = { ...(meta || {}), fontSize: ((meta && meta.fontSize) || 0) + 1 };
+    const metaControl = canon(mutated) !== want;
     if (history.length > frames.length) throw new ConformanceError('HISTORY_LONGER_THAN_FRAMES', history.length - frames.length);
     let acc = '',
       bad = 0,
@@ -112,6 +149,9 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       firstBad,
       endpointOk: acc === text,
       control,
+      metaOk,
+      histLenOk,
+      metaControl,
       oldMB: +(old.length / 1048576).toFixed(2),
       newMB: +(converted.length / 1048576).toFixed(3),
       ms: Date.now() - t0,
@@ -123,7 +163,8 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
   }
 }
 
-const passed = (r) => !r.error && r.trajectoryBad === 0 && r.textBad === 0 && r.endpointOk;
+const passed = (r) =>
+  !r.error && r.trajectoryBad === 0 && r.textBad === 0 && r.endpointOk && r.metaOk && r.histLenOk;
 
 // The printed line. A passing row is named by its archive file, as before. A failing or erroring row
 // is named by its index alone, and says only what describeError allows, plus the first bad frame's
@@ -134,7 +175,7 @@ function formatRow(r) {
     const e = r.error;
     return `ERR  ${id}  stage:${e.stage} class:${e.class}${e.code ? ` code:${e.code}` : ''}${'count' in e ? ` count:${e.count}` : ''}${'exit' in e ? ` exit:${e.exit}` : ''}`;
   }
-  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} textBad:${String(r.textBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} control:${r.control} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
+  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} textBad:${String(r.textBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} meta:${r.metaOk ? 'ok' : 'NO'} histLen:${r.histLenOk ? 'ok' : 'NO'} control:${r.control && r.metaControl} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
   if (passed(r)) return `PASS ${r.name.padEnd(44)} ${tail}`;
   const fb = r.firstBad;
   return `FAIL ${id.padEnd(44)} ${tail}${fb ? ` firstBad:${fb.i}` : ''}`;
@@ -155,7 +196,8 @@ function summarise(rows) {
   const err = rows.filter((r) => r.error).length;
   const bad = rows.length - ok - err;
   const withControl = rows.filter((r) => r.control !== null && r.control !== undefined);
-  const ctl = withControl.filter((r) => r.control === true).length;
+  // A poem's controls fired only if BOTH did: the trajectory corruption and the meta mutation.
+  const ctl = withControl.filter((r) => r.control === true && r.metaControl === true).length;
   const ctlN = withControl.length;
   const exitCode = rows.length > 0 && bad === 0 && err === 0 && ctl === ctlN ? 0 : 1;
   return { ok, bad, err, ctl, ctlN, total: rows.length, exitCode };
