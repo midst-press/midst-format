@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "The .midst file format: spec, converters between generations, and the conformance suite.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
