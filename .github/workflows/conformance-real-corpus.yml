@@ -20,7 +20,6 @@ jobs:
         with:
           repository: midst-press/midst-editor
           path: midst-editor
-          token: ${{ secrets.MIDST_REPO_READ_TOKEN }}
       - run: npm ci
         working-directory: midst-format
       - name: build harness
