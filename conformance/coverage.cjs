@@ -179,9 +179,11 @@ function main() {
   const outFile = path.join(ROOT, 'coverage', 'converter-istanbul.json');
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify({ [fixed.path]: fixed }));
-  // The sha256 of the util.ts that was measured, as bytes on disk. midst-editor's merge compares it with its
-  // own util.ts and leaves this layer out on a mismatch: line numbers from another version mean nothing there.
-  const utilSha = crypto.createHash('sha256').update(fs.readFileSync(entry.path)).digest('hex');
+  // The sha256 of the util.ts that was MEASURED: the text esbuild bundled (the source map's sourcesContent),
+  // not the file on disk now, which may have changed since build:harness (clement-7074f29f). midst-editor's
+  // merge compares it with its own util.ts and leaves this layer out on a mismatch.
+  if (!map.sourcesContent || typeof map.sourcesContent[si] !== 'string') throw new Error('the bundle source map has no sourcesContent for util.ts');
+  const utilSha = crypto.createHash('sha256').update(map.sourcesContent[si], 'utf8').digest('hex');
   fs.writeFileSync(path.join(path.dirname(outFile), 'converter-util.sha256'), `${utilSha}  src/main/util.ts\n`);
   console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out)`);
 
