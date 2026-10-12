@@ -106,6 +106,8 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
     // Control: the comparison must be able to fail. Change one copied field and it must disagree.
     const mutated = { ...(meta || {}), fontSize: ((meta && meta.fontSize) || 0) + 1 };
     const metaControl = canon(mutated) !== want;
+    // How many fields were compared: a count, not poem data. Zero everywhere would be a vacuous pass.
+    const metaFields = Object.keys(expectedMeta(parsed.meta)).length;
     if (history.length > frames.length) throw new ConformanceError('HISTORY_LONGER_THAN_FRAMES', history.length - frames.length);
     let acc = '',
       bad = 0,
@@ -152,6 +154,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       metaOk,
       histLenOk,
       metaControl,
+      metaFields,
       oldMB: +(old.length / 1048576).toFixed(2),
       newMB: +(converted.length / 1048576).toFixed(3),
       ms: Date.now() - t0,
@@ -175,7 +178,7 @@ function formatRow(r) {
     const e = r.error;
     return `ERR  ${id}  stage:${e.stage} class:${e.class}${e.code ? ` code:${e.code}` : ''}${'count' in e ? ` count:${e.count}` : ''}${'exit' in e ? ` exit:${e.exit}` : ''}`;
   }
-  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} textBad:${String(r.textBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} meta:${r.metaOk ? 'ok' : 'NO'} histLen:${r.histLenOk ? 'ok' : 'NO'} control:${r.control && r.metaControl} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
+  const tail = `frames:${String(r.frames).padStart(6)} badFrames:${String(r.trajectoryBad).padStart(6)} textBad:${String(r.textBad).padStart(6)} endpoint:${r.endpointOk ? 'ok' : 'NO'} meta:${r.metaOk ? 'ok' : 'NO'} metaFields:${r.metaFields} histLen:${r.histLenOk ? 'ok' : 'NO'} control:${r.control && r.metaControl} ${String(r.oldMB).padStart(6)}MB->${String(r.newMB).padStart(6)}MB ${String(r.ms).padStart(6)}ms`;
   if (passed(r)) return `PASS ${r.name.padEnd(44)} ${tail}`;
   const fb = r.firstBad;
   return `FAIL ${id.padEnd(44)} ${tail}${fb ? ` firstBad:${fb.i}` : ''}`;
@@ -200,7 +203,8 @@ function summarise(rows) {
   const ctl = withControl.filter((r) => r.control === true && r.metaControl === true).length;
   const ctlN = withControl.length;
   const exitCode = rows.length > 0 && bad === 0 && err === 0 && ctl === ctlN ? 0 : 1;
-  return { ok, bad, err, ctl, ctlN, total: rows.length, exitCode };
+  const metaFields = rows.reduce((n, r) => n + (r.metaFields || 0), 0);
+  return { ok, bad, err, ctl, ctlN, total: rows.length, metaFields, exitCode };
 }
 
 module.exports = { verifyZip, formatRow, recordRow, passed, summarise, describeError, ConformanceError, step };
