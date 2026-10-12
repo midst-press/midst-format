@@ -88,8 +88,9 @@ function run(corpus) {
 // the lines have to be told apart before anything is counted:
 //   mapped     has a source-map mapping: code that is in the bundle. The only lines whose hits mean anything.
 //   outside    code in a top-level declaration NONE of whose lines is mapped: dropped by the bundler, never run.
-//   neither    blank, comment-only, or an unmapped line inside a bundled declaration (a lone brace, a
-//              continuation): not code that can be covered or missed, so it is counted nowhere.
+//   neither    blank, comment-only, an unmapped line inside a bundled declaration (a lone brace, a
+//              continuation), or an import / interface / type / declare declaration, which never executes:
+//              not code that can be covered or missed, so it is counted nowhere.
 function classify(source, bundled) {
   const lines = source.split('\n');
   const kind = new Map();
@@ -111,9 +112,12 @@ function classify(source, bundled) {
   starts.forEach((s, n) => {
     const end = n + 1 < starts.length ? starts[n + 1] : lines.length;
     const anyMapped = Array.from({ length: end - s }, (_, k) => s + k + 1).some((l) => bundled.has(l));
+    // import, interface, type and declare are erased by TypeScript or are not statements: they can never
+    // execute, so they are not missed code (clement-7074f29f).
+    const erased = /^(export\s+)?(import|interface|type|declare)\b/.test(lines[s]);
     for (let i = s; i < end; i++) {
       const l = i + 1;
-      kind.set(l, bundled.has(l) ? 'mapped' : isCode[i] && !anyMapped ? 'outside' : 'neither');
+      kind.set(l, bundled.has(l) ? 'mapped' : isCode[i] && !anyMapped && !erased ? 'outside' : 'neither');
     }
   });
   for (let l = 1; l <= lines.length; l++) if (!kind.has(l)) kind.set(l, bundled.has(l) ? 'mapped' : 'neither');
@@ -173,7 +177,7 @@ function main() {
   const outFile = path.join(ROOT, 'coverage', 'converter-istanbul.json');
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify({ [fixed.path]: fixed }));
-  console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment or structural lines left out)`);
+  console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out)`);
 
   // CONTROLS, on the synthetic corpus: the instrument must be able to say "not covered".
   //   1  the line that copies a draft marker runs only for a poem that has one. With the whole corpus it
