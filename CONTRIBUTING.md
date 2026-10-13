@@ -50,6 +50,9 @@ Rebuild the harness whenever the editor's converter changes.
 - A change to what the suite accepts as conformant needs a synthetic case that shows the difference.
 - `docs/KNOWN-DEVIATIONS.md` records where the converter is known to differ, and why. Update it when that
   changes.
+- **Commit messages and pull-request titles say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
+  keyword there closes the issue the moment the commit reaches `main`, before anyone has checked the fix in
+  a release. The `commit-msg` hook that `pre-commit install` sets up refuses one.
 
 ## CI
 
