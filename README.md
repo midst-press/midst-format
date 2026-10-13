@@ -84,6 +84,8 @@ would have been green and worthless.
 
 ## Running it
 
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, and the rules about poem content.
+
     npm ci                 # ci, never install: the pins are exact and version-sensitive
     npm run provenance     # asserts the transcribed TipTap config still matches upstream
     npm test               # the self-tests (Jest): the text oracle, and a poem that FAILS leaves no text in the output; needs no harness
