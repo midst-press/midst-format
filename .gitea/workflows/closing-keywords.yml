@@ -1,0 +1,59 @@
+# No closing keyword ("fixes #25", "Closes: #5") in a pull request's commit messages or its title.
+#
+# GitHub applies a closing keyword in a commit message to ITS issue of that number when the commit reaches
+# main there, and our commits use Gitea's numbers: two GitHub items were closed that way on 12 Oct 2026
+# (midst-infra #14). A Gitea merge commit carries the pull request's title, so the title is checked too. The
+# keyword belongs in the pull-request body, which goes nowhere but Gitea.
+#
+# Its own workflow, not a step of ci.yml, so that editing the title runs this check again without running
+# the build and the tests again. tools/closing_refs.py is a copy of the checker in midst-infra, which
+# push_up.sh also uses.
+name: closing-keywords
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+concurrency:
+  group: closing-keywords-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: /opt/homebrew/bin/bash -eo pipefail {0}
+jobs:
+  check:
+    runs-on: stuart-m3ultra-canary
+    steps:
+      - name: Homebrew first on PATH
+        run: |
+          echo /opt/homebrew/sbin >> "$GITHUB_PATH"
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the range below needs the commits, not only the tip
+      - name: control, the check fails on a title that has a closing keyword
+        env:
+          CONTROL_TITLE: "a title that would close something (fixes #1)"
+        run: |
+          rc=0
+          python3 tools/closing_refs.py --title-env CONTROL_TITLE || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "expected exit 1 (found) for a title with a closing keyword, got $rc: a pass below would mean nothing" >&2
+            exit 1
+          fi
+      - name: no closing keyword in this pull request's commits or title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        # Against the base branch as it is now, not as it was when the pull request was opened: a branch that
+        # has merged main in must not be judged on main's own commits.
+        run: |
+          # A pull request has at least one commit of its own. None here means the range was not what it
+          # should be, and the pass below would be for the title alone.
+          count="$(git rev-list --count "origin/$BASE_REF..$HEAD_SHA")"
+          if [ "$count" -lt 1 ]; then
+            echo "no commits in origin/$BASE_REF..$HEAD_SHA, so no commit message was checked" >&2
+            exit 1
+          fi
+          python3 tools/closing_refs.py --range "origin/$BASE_REF..$HEAD_SHA" --title-env PR_TITLE

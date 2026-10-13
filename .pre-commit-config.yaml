@@ -57,3 +57,17 @@ repos:
         entry: npx --no-install jest conformance/no_text.test.cjs
         pass_filenames: false
         files: "^conformance/"
+
+      # ---- closing keywords. GitHub applies "fixes #25" in a commit message to ITS issue 25, which is not
+      # ours: our commits use Gitea's numbers. Two GitHub items were closed that way (midst-infra #14). ----
+      - id: no-closing-keyword-in-commit-message
+        name: no closing keyword in a commit message (write Refs #N; the keyword goes in the Gitea PR body)
+        language: system
+        entry: python3 tools/closing_refs.py --message-file
+        stages: [commit-msg]
+      - id: closing-refs-is-the-midst-infra-copy
+        name: tools/closing_refs.py is a copy from midst-infra (change it there first, then here with its checksum)
+        language: system
+        entry: shasum -a 256 -c tools/closing_refs.sha256
+        pass_filenames: false
+        files: '^tools/closing_refs\.(py|sha256)$'
