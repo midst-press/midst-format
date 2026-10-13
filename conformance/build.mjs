@@ -7,7 +7,9 @@ const stub = (f) => path.join(here, 'stubs', f);
 // Set MIDST_EDITOR_SRC to the midst-editor checkout root.
 const editor = process.env.MIDST_EDITOR_SRC;
 if (!editor) { console.error('MIDST_EDITOR_SRC is not set: point it at a midst-editor checkout.'); process.exit(2); }
-const utilPath = path.join(editor, 'src', 'main', 'util');
+// Resolved against the working directory: the value is written into an import in conformance/, where a relative
+// path would otherwise be read from the wrong place.
+const utilPath = path.join(path.resolve(editor), 'src', 'main', 'util');
 fsp.writeFileSync(path.join(here, 'entry.generated.ts'),
   `import { convertMidstFile } from ${JSON.stringify(utilPath)};\nexport { convertMidstFile };\n`);
 
