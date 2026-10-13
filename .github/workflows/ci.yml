@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: pre-commit (the same hooks your commit runs)
         run: |
           pip install 'pre-commit==4.6.2'
@@ -46,7 +46,7 @@ jobs:
           node-version-file: midst-format/.nvmrc
           cache: npm
           cache-dependency-path: midst-format/package-lock.json
-      - run: npm ci
+      - run: npm ci --ignore-scripts
         working-directory: midst-format
       - name: the transcribed TipTap config must still match upstream
         working-directory: midst-format
