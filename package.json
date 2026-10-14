@@ -7,6 +7,7 @@
   "scripts": {
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
+    "prepare": "node tools/install-hooks.cjs",
     "test": "jest",
     "trajectory": "node conformance/trajectory.cjs",
     "conformance": "node conformance/verify_all.cjs",

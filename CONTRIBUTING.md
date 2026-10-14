@@ -35,12 +35,15 @@ AGPL-3.0-or-later (`LICENSE`). By contributing you agree your contribution is li
 ## Before you open a pull request
 
 `pre-commit` is a Python tool: `pipx install pre-commit==4.6.2` (the version CI uses; `uv tool install`
-works too). The `conformance-synthetic` hook runs the suite, so build the harness first:
+works too). Install it before `npm ci`: `npm ci` installs this clone's git hooks for you
+(`tools/install-hooks.cjs`) and fails if it cannot, and `npm test` does not run in a clone without them. A
+commit made without the hooks skips every check below and the rule about closing keywords.
+
+The `conformance-synthetic` hook runs the suite, so build the harness first:
 
 ```
 npm ci
 MIDST_EDITOR_SRC=../midst-editor npm run build:harness   # writes out/converter.cjs from the editor's source
-pre-commit install            # once per clone
 pre-commit run --all-files    # the same checks CI runs, including conformance on the synthetic corpus
 npm test                      # self-tests (Jest); no harness needed
 ```
