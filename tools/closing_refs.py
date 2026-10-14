@@ -10,11 +10,29 @@ commit carries the title).
     closing_refs.py --message-file FILE     the commit-msg hook: one commit message, as git hands it over
     closing_refs.py --range A..B            every commit message in a range
     closing_refs.py --title-env NAME        the text in environment variable NAME (a pull-request title)
+    closing_refs.py --body-env NAME         the text in environment variable NAME (a pull-request description)
     closing_refs.py --list --range A..B     do not judge; print what push_up.sh needs to ask GitHub about
+    closing_refs.py --list-github --range A..B   do not judge; print the GitHub issues the commits name
 
---range and --title-env may be given together. Without --list: exit 0 when nothing was found, 1 when a closing
-reference was found (each is printed), 2 when the text could not be read. With --list: one line per reference that
-GitHub would act on, "<commit> <owner/repo or -> <number>", exit 0, or 2 when the range could not be read.
+--range, --title-env and --body-env may be given together. Without --list or --list-github: exit 0 when nothing
+was found, 1 when a closing reference was found (each is printed), 2 when the text could not be read. With --list:
+one line per reference that GitHub would act on, "<commit> <owner/repo or -> <number>". With --list-github: the
+issues written as "GitHub #12" in the commits' subject lines, one "refs <number>" or "completes <number>" line
+each, each issue once, ascending. Both list modes exit 0 whether
+or not they print anything, so neither is a gate; 2 when the range could not be read.
+
+--body-env is for GitHub, where an issue must stay open after a merge until someone has checked the fix in a
+release, so a closing keyword is refused in the description too. On Gitea the description is where it belongs.
+
+"GitHub #12" is how a Gitea pull request names the GitHub issue it serves, in its title: "... (GitHub #12)" or
+"(GitHub #12, #14)". The Gitea merge commit carries the title, so push_up.sh can read it with git alone. Only
+the subject line of a commit is read, because a body may mention an issue it does not serve ("see GitHub #12
+for the upstream report"), and a revert is skipped, because it names the issue it un-fixes.
+
+A requirement often takes several pull requests, so naming an issue does not say it is done. The one that
+finishes it says so: "(completes GitHub #12)". That is "completes <number>" in the list, and it is the only thing
+that later marks the issue as fixed. "Completes" is not a closing keyword on GitHub or on Gitea. An issue both
+named and completed in one range is listed as completed.
 
 Standard library only, so it runs wherever python3 does.
 """
@@ -43,10 +61,24 @@ _REFERENCE = (
 )
 CLOSING = re.compile(_KEYWORD + r":?\s*" + _REFERENCE, re.IGNORECASE)
 
+# "GitHub #12", "GitHub #12, #14", "GitHub #12 and #14": the GitHub issues a commit serves. With "completes" in
+# front, the ones it finishes.
+GITHUB_ISSUES = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<completes>completes[ \t]+)?"
+    r"GitHub[ \t]+#[0-9]+(?:(?:[ \t]*,[ \t]*|[ \t]+and[ \t]+)#[0-9]+)*",
+    re.IGNORECASE,
+)
+# A revert, or the Gitea merge of a pull request whose title is one: Revert "...", Merge pull request 'Revert ...
+REVERT = re.compile(r"(?:Merge pull request ['\"])?Revert\b", re.IGNORECASE)
+
 GITHUB_HOSTS = ("github.com", "www.github.com")
 RULE = (
     "On the Midst repositories a closing keyword goes only in the Gitea pull-request body. GitHub applies the one "
     "in a commit message or title to ITS issue of that number, which is a different issue. Write 'Refs #N' here."
+)
+GITHUB_RULE = (
+    "An issue here is closed by whoever checks the fix in a release, not by the merge. Write 'Refs #N' in the "
+    "title, the description and the commit messages."
 )
 
 
@@ -94,6 +126,41 @@ def find(text: str) -> list[ClosingRef]:
             )
         )
     return found
+
+
+def github_issue_numbers(text: str) -> list[int]:
+    """Return the GitHub issue numbers a text names as "GitHub #N", in the order written.
+
+    Args:
+        text: A commit message or a title.
+
+    Returns:
+        The numbers; empty when the text names none. A number written twice appears twice.
+    """
+    numbers = []
+    for match in GITHUB_ISSUES.finditer(text):
+        numbers.extend(int(number) for number in re.findall(r"#([0-9]+)", match.group(0)))
+    return numbers
+
+
+def github_issues_served(message: str) -> list[tuple[int, bool]]:
+    """Return the GitHub issues a commit serves: those named in its subject line, unless it is a revert.
+
+    Args:
+        message: A whole commit message.
+
+    Returns:
+        (number, whether the commit completes it), in the order written; empty for a revert, and for a subject
+        that names none.
+    """
+    subject = message.split("\n", 1)[0]
+    if REVERT.match(subject):
+        return []
+    served = []
+    for match in GITHUB_ISSUES.finditer(subject):
+        completes = match.group("completes") is not None
+        served.extend((int(number), completes) for number in re.findall(r"#([0-9]+)", match.group(0)))
+    return served
 
 
 def message_from_file(raw: str) -> str:
@@ -153,12 +220,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--message-file")
     parser.add_argument("--range", dest="revision_range")
     parser.add_argument("--title-env")
+    parser.add_argument("--body-env")
     parser.add_argument("--list", action="store_true", dest="list_only")
+    parser.add_argument("--list-github", action="store_true")
     args = parser.parse_args(argv)
-    if not (args.message_file or args.revision_range or args.title_env):
-        parser.error("give --message-file, --range or --title-env")
-    if args.list_only and (args.message_file or args.title_env or not args.revision_range):
-        parser.error("--list takes --range and nothing else")
+    if not (args.message_file or args.revision_range or args.title_env or args.body_env):
+        parser.error("give --message-file, --range, --title-env or --body-env")
+    listing = args.list_only or args.list_github
+    if listing and (args.message_file or args.title_env or args.body_env or not args.revision_range):
+        parser.error("--list and --list-github take --range and nothing else")
+    if args.list_only and args.list_github:
+        parser.error("--list and --list-github are separate questions; ask one")
 
     texts: list[tuple[str, str]] = []  # (where it was found, text)
     try:
@@ -168,11 +240,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.revision_range:
             for commit, message in commit_messages(args.revision_range):
                 texts.append((commit[:12], message))
-        if args.title_env:
-            if args.title_env not in os.environ:
-                print(f"closing_refs: environment variable {args.title_env} is not set", file=sys.stderr)
+        for name, where in ((args.title_env, "the title"), (args.body_env, "the description")):
+            if not name:
+                continue
+            if name not in os.environ:
+                print(f"closing_refs: environment variable {name} is not set", file=sys.stderr)
                 return 2
-            texts.append(("the title", os.environ[args.title_env]))
+            texts.append((where, os.environ[name]))
     except (OSError, subprocess.CalledProcessError) as error:
         print(f"closing_refs: could not read the text to check: {error}", file=sys.stderr)
         return 2
@@ -184,13 +258,22 @@ def main(argv: list[str] | None = None) -> int:
                     print(where, ref.repo or "-", ref.number)
         return 0
 
+    if args.list_github:
+        completed: dict[int, bool] = {}
+        for _, text in texts:
+            for number, completes in github_issues_served(text):
+                completed[number] = completed.get(number, False) or completes
+        for number in sorted(completed):
+            print("completes" if completed[number] else "refs", number)
+        return 0
+
     count = 0
     for where, text in texts:
         for ref in find(text):
             count += 1
             print(f"closing_refs: {where} has a closing reference: {ref.text!r}", file=sys.stderr)
     if count:
-        print(f"closing_refs: {RULE}", file=sys.stderr)
+        print(f"closing_refs: {GITHUB_RULE if args.body_env else RULE}", file=sys.stderr)
         return 1
     print(f"closing_refs: {len(texts)} text(s) checked, no closing reference")
     return 0
