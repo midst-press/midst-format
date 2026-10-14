@@ -53,9 +53,18 @@ Rebuild the harness whenever the editor's converter changes.
 - A change to what the suite accepts as conformant needs a synthetic case that shows the difference.
 - `docs/KNOWN-DEVIATIONS.md` records where the converter is known to differ, and why. Update it when that
   changes.
-- **Commit messages and pull-request titles say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
-  keyword there closes the issue the moment the commit reaches `main`, before anyone has checked the fix in
-  a release. The `commit-msg` hook that `pre-commit install` sets up refuses one.
+- **Titles, descriptions and commit messages say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
+  keyword closes the issue the moment the commit reaches `main`, before anyone has checked the fix. The
+  `commit-msg` hook that `pre-commit install` sets up refuses one, and so does a check on the pull request
+  (`.github/workflows/closing-keywords.yml`).
+
+## How an issue gets closed
+
+An issue is closed by a person who has checked the fix, not by the merge. A change here reaches someone
+using Midst only when a release of the editor and the site both contain it, so there is no single release
+of this repository to check it in. Until that rule is settled, nothing labels or assigns issues here
+automatically, as `issue-flow.yml` does in `midst-editor` and `midst-web`; `tools/issue_flow.py` is kept
+as the same copy those repositories hold, and no workflow runs it.
 
 ## CI
 
