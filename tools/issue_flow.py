@@ -22,7 +22,10 @@ comment naming the release and saying how to check it, the label "needs verifyin
 the tag, and the verifier as assignee (VERIFIER, a GitHub login; empty assigns nobody); then "awaiting release"
 is taken off. An issue whose fix is not in the tag, or that has no recorded commit because it was labelled by
 hand, is left as it is and named in the output: a fix merged after the tag was cut is not in that release, and
-telling its reporter otherwise would make a good fix look like a failed one.
+telling its reporter otherwise would make a good fix look like a failed one. When the reason is one only a person
+can settle (no recorded commit, or one GitHub cannot find), the issue is also told so in a comment, once per
+release, and the run shows a warning: a line in a green run's log is read by nobody (midst-infra #46). A fix that
+is simply not in this release needs nobody: the next release takes it.
 
 closed: an issue closed as completed while it is "awaiting release" is reopened, with a comment saying its fix is
 not in a release yet. Closing a "needs verifying" issue is the verifier's act and is left alone, and so is an
@@ -44,6 +47,7 @@ reached, and the output says how far it got. Standard library only.
 The label name has no comma on purpose: GitHub's issue queries take labels as a comma-separated list, so a label
 with a comma in its name cannot be asked for.
 """
+
 from __future__ import annotations
 
 import json
@@ -160,7 +164,7 @@ def verification_steps(issue_body: str | None) -> str | None:
     heading = re.search(rf"^(#{{1,6}})[ \t]*{re.escape(STEPS_HEADING)}[ \t]*\n", body, re.MULTILINE)
     if not heading:
         return None
-    rest = body[heading.end():]
+    rest = body[heading.end() :]
     # The section ends at the next heading of the same level or higher. A smaller heading inside the steps is
     # part of them.
     following = re.search(rf"^#{{1,{len(heading.group(1))}}}[ \t]", rest, re.MULTILINE)
@@ -279,7 +283,23 @@ def merged(repo: str, pull_number: int) -> int:
     return done
 
 
-def why_not_in(repo: str, tag: str, comment_bodies: list[str]) -> str | None:
+def left_marker(tag: str) -> str:
+    """Return the hidden line that marks an issue as already told it was left for a person at a release."""
+    return f"<!-- midst-issue-flow: left-for-a-person {tag} -->"
+
+
+def left_comment(tag: str, reason: str) -> str:
+    """Compose the comment on an issue a release could not hand over, for the person who has to decide."""
+    return (
+        f"**This was not handed to the verifier with {tag}:** {reason}.\n\n"
+        f"If {tag} does contain the fix, label this issue `{VERIFYING}` instead of `{AWAITING}`, put it on a "
+        f"milestone named {tag} (make one if there is none yet) and assign the verifier. If it does not, leave it as it is; the next release will "
+        "look at it again.\n\n"
+        f"{left_marker(tag)}"
+    )
+
+
+def why_not_in(repo: str, tag: str, comment_bodies: list[str]) -> tuple[str, bool] | None:
     """Say why an issue's fix cannot be called part of a release, or None when it is part of it.
 
     Args:
@@ -288,20 +308,21 @@ def why_not_in(repo: str, tag: str, comment_bodies: list[str]) -> str | None:
         comment_bodies: The issue's comments by the workflows' own identity, where merged() recorded the commits.
 
     Returns:
-        A reason to leave the issue as it is, or None when every recorded commit is contained in the tag.
+        (a reason to leave the issue as it is, whether only a person can settle it), or None when every recorded
+        commit is contained in the tag.
     """
     commits = [commit for body in comment_bodies for commit in FIXED_IN.findall(body)]
     if not commits:
-        return "no fixing commit is recorded on it (labelled by hand?), so a person must decide"
+        return "no fixing commit is recorded on it (labelled by hand?), so a person must decide", True
     for commit in dict.fromkeys(commits):
         try:
             compared = gh("GET", f"repos/{repo}/compare/{commit}...{quote(tag)}")
         except GitHubError as error:
             if not absent(error):
                 raise
-            return f"its recorded commit {commit[:12]} or the tag could not be found"
+            return f"its recorded commit {commit[:12]} or the tag could not be found", True
         if compared["behind_by"] != 0:  # the tag lacks commits that the fix has: the fix is not in it
-            return f"its fix {commit[:12]} is not in {tag}"
+            return f"its fix {commit[:12]} is not in {tag}", False
     return None
 
 
@@ -325,15 +346,27 @@ def released(repo: str, tag: str, release_url: str, verifier: str) -> int:
     for issue in issues:
         number = issue["number"]
         comments = own_comments(repo, number)
-        reason = why_not_in(repo, tag, comments)
-        if reason:
+        left = why_not_in(repo, tag, comments)
+        if left:
+            reason, for_a_person = left
             print(f"issue_flow: #{number} left '{AWAITING}': {reason}")
+            if for_a_person:
+                # A GitHub Actions annotation, shown on the run and the workflow's page; plain text elsewhere.
+                print(
+                    f"::warning title=Not handed to the verifier::#{number} was left '{AWAITING}' for {tag}: {reason}"
+                )
+                if not any(left_marker(tag) in body for body in comments):
+                    gh("POST", f"repos/{repo}/issues/{number}/comments", {"body": left_comment(tag, reason)})
             continue
         if milestone is None:  # made only once there is something to put on it
             ensure_label(repo, VERIFYING)
             milestone = milestone_number(repo, tag)
         if not any(marker(tag) in body for body in comments):
-            gh("POST", f"repos/{repo}/issues/{number}/comments", {"body": release_comment(tag, release_url, issue.get("body"))})
+            gh(
+                "POST",
+                f"repos/{repo}/issues/{number}/comments",
+                {"body": release_comment(tag, release_url, issue.get("body"))},
+            )
         gh("POST", f"repos/{repo}/issues/{number}/labels", {"labels": [VERIFYING]})
         gh("PATCH", f"repos/{repo}/issues/{number}", {"milestone": milestone})
         who = "unassigned"
@@ -418,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"issue_flow: stopped: {error}", file=sys.stderr)
         return 2
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
