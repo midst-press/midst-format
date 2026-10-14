@@ -29,6 +29,21 @@ release, so a closing keyword is refused in the description too. On Gitea the de
 the subject line of a commit is read, because a body may mention an issue it does not serve ("see GitHub #12
 for the upstream report"), and a revert is skipped, because it names the issue it un-fixes.
 
+A revert in the range also takes back the commit it reverts, when that commit is in the range too: the code going
+up no longer has that change, so the issues its subject names are not listed (midst-infra #29). The two are
+matched on the subject the revert quotes, which is how git and Gitea write one: Revert "<subject>", with or
+without Gitea's "Merge pull request '...' (#N) from ..." around either. For each subject the newest commit
+decides: a revert takes back every older commit with that subject, and the change landing again after it (the
+same subject, a Reapply "<subject>", or a revert of the revert) brings them back. Each commit taken back is named
+on stderr.
+
+What this does not see. The match is on subjects, so a revert takes back only commits with the subject it quotes.
+When the issue is named only in a pull request's title, only the merge commit names it: reverting the merge, or a
+revert whose title quotes that title, takes it back, but a revert of the commit inside the pull request
+(Revert "<that commit's subject>") does not, and the merge still says "completes" (midst-infra #34). A revert
+whose subject quotes nothing ("Revert the save change") takes back nothing. And a revert that goes up in a later
+push-up than its fix is not seen at all: by then the issue is marked, and undoing that is a person's act.
+
 A requirement often takes several pull requests, so naming an issue does not say it is done. The one that
 finishes it says so: "(completes GitHub #12)". That is "completes <number>" in the list, and it is the only thing
 that later marks the issue as fixed. "Completes" is not a closing keyword on GitHub or on Gitea. An issue both
@@ -36,6 +51,7 @@ named and completed in one range is listed as completed.
 
 Standard library only, so it runs wherever python3 does.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -70,6 +86,11 @@ GITHUB_ISSUES = re.compile(
 )
 # A revert, or the Gitea merge of a pull request whose title is one: Revert "...", Merge pull request 'Revert ...
 REVERT = re.compile(r"(?:Merge pull request ['\"])?Revert\b", re.IGNORECASE)
+# The wrappers around the subject a revert quotes. Gitea's merge commit, around a pull request's title:
+GITEA_MERGE = re.compile(r"Merge pull request (?P<quote>['\"])(?P<inner>.*)(?P=quote) \(#[0-9]+\) from \S+ into \S+")
+# git's own subject for a revert, and for the revert of a revert (git 2.43 and later write Reapply for that):
+QUOTED_REVERT = re.compile(r'Revert "(?P<inner>.*)"', re.IGNORECASE)
+QUOTED_REAPPLY = re.compile(r'Reapply "(?P<inner>.*)"', re.IGNORECASE)
 
 GITHUB_HOSTS = ("github.com", "www.github.com")
 RULE = (
@@ -163,6 +184,51 @@ def github_issues_served(message: str) -> list[tuple[int, bool]]:
     return served
 
 
+def unwrapped(subject: str) -> tuple[str, int]:
+    """Return the subject at the centre of a commit's subject line, and how many reverts are around it.
+
+    Args:
+        subject: A commit's subject line.
+
+    Returns:
+        (the innermost subject, the number of Revert "..." wrappers around it). Gitea's merge wrapper and git's
+        Reapply "..." are taken off without counting: neither undoes anything. A subject with no wrapper is
+        returned as it is, with 0.
+    """
+    text, reverts = subject.strip(), 0
+    while True:
+        merge = GITEA_MERGE.fullmatch(text) or QUOTED_REAPPLY.fullmatch(text)
+        if merge:
+            text = merge.group("inner").strip()
+            continue
+        revert = QUOTED_REVERT.fullmatch(text)
+        if revert:
+            text, reverts = revert.group("inner").strip(), reverts + 1
+            continue
+        return text, reverts
+
+
+def taken_back(subjects: list[str]) -> set[int]:
+    """Return which commits a later revert in the same list takes back.
+
+    Args:
+        subjects: The subject lines of the commits in a range, newest first, a commit always before its parents.
+
+    Returns:
+        The positions of the commits that are not reverts and whose subject the newest commit of that subject
+        reverts. Reverts themselves are never in the set: they serve nothing already.
+    """
+    reverted: dict[str, bool] = {}  # innermost subject -> whether its newest commit is a revert
+    gone = set()
+    for position, subject in enumerate(subjects):
+        inner, reverts = unwrapped(subject)
+        if inner not in reverted:
+            reverted[inner] = reverts % 2 == 1
+        if reverts == 0 and reverted[inner]:
+            gone.add(position)
+    return gone
+
+
 def message_from_file(raw: str) -> str:
     """Return the commit message in a message file: what precedes git's scissors line.
 
@@ -190,13 +256,14 @@ def commit_messages(revision_range: str) -> list[tuple[str, str]]:
         revision_range: Anything `git rev-list` accepts, such as "origin/main..HEAD".
 
     Returns:
-        One pair per commit, newest first.
+        One pair per commit, newest first, and a commit always before its parents (a revert before what it
+        reverts), whatever the commits' dates say.
 
     Raises:
         subprocess.CalledProcessError: If git could not list the range or read a message.
     """
     listed = subprocess.run(
-        ["git", "rev-list", revision_range, "--"], check=True, capture_output=True, text=True
+        ["git", "rev-list", "--topo-order", revision_range, "--"], check=True, capture_output=True, text=True
     )
     pairs = []
     for commit in listed.stdout.split():
@@ -260,7 +327,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.list_github:
         completed: dict[int, bool] = {}
-        for _, text in texts:
+        gone = taken_back([text.split("\n", 1)[0] for _, text in texts])
+        for position, (where, text) in enumerate(texts):
+            if position in gone:
+                if github_issues_served(text):
+                    print(
+                        f"closing_refs: {where} is reverted later in this range; the issues it names are not listed",
+                        file=sys.stderr,
+                    )
+                continue
             for number, completes in github_issues_served(text):
                 completed[number] = completed.get(number, False) or completes
         for number in sorted(completed):
