@@ -1,0 +1,53 @@
+{
+  "title": "Clarissa Harlowe; or the history of a young lady (Samuel Richardson), Project Gutenberg, public domain",
+  "volumes": [
+    {
+      "volume": 1,
+      "ebook": 9296,
+      "url": "https://www.gutenberg.org/cache/epub/9296/pg9296.txt"
+    },
+    {
+      "volume": 2,
+      "ebook": 9798,
+      "url": "https://www.gutenberg.org/cache/epub/9798/pg9798.txt"
+    },
+    {
+      "volume": 3,
+      "ebook": 9881,
+      "url": "https://www.gutenberg.org/cache/epub/9881/pg9881.txt"
+    },
+    {
+      "volume": 4,
+      "ebook": 10462,
+      "url": "https://www.gutenberg.org/cache/epub/10462/pg10462.txt"
+    },
+    {
+      "volume": 5,
+      "ebook": 10799,
+      "url": "https://www.gutenberg.org/cache/epub/10799/pg10799.txt"
+    },
+    {
+      "volume": 6,
+      "ebook": 11364,
+      "url": "https://www.gutenberg.org/cache/epub/11364/pg11364.txt"
+    },
+    {
+      "volume": 7,
+      "ebook": 11889,
+      "url": "https://www.gutenberg.org/cache/epub/11889/pg11889.txt"
+    },
+    {
+      "volume": 8,
+      "ebook": 12180,
+      "url": "https://www.gutenberg.org/cache/epub/12180/pg12180.txt"
+    },
+    {
+      "volume": 9,
+      "ebook": 12398,
+      "url": "https://www.gutenberg.org/cache/epub/12398/pg12398.txt"
+    }
+  ],
+  "normalisation": "per volume: drop a leading BOM, CRLF -> LF, keep only what lies between the '*** START OF' line and the '*** END OF' line, trim; volumes joined by one blank line; one trailing newline",
+  "chars": 5216723,
+  "sha256": "a5a46dcdcef1fb1dd848a9b6a5f4c83a34fa9e8660990a7ba6f081429139b207"
+}
