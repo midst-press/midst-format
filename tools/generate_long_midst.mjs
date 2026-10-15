@@ -29,7 +29,8 @@ import { fileURLToPath } from 'node:url';
 export const VERSION_HEADER = 'midstVersion: 1';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
-const DEFAULT_TEXT = path.join(os.homedir(), 'ai/ClaudeInstanceHomeOffices/cora-2f1e43dc/midst-cache/clarissa/clarissa.txt');
+// tools/fetch_clarissa.mjs's default cache.
+const DEFAULT_TEXT = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'midst-format', 'clarissa', 'clarissa.txt');
 const DEFAULT_RATES = path.join(HERE, 'long_midst_rates.json');
 const FLUSH_AT = 1 << 20;
 

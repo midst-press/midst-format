@@ -12,7 +12,8 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const MANIFEST = path.join(HERE, 'clarissa_source.json');
-export const DEFAULT_CACHE = path.join(os.homedir(), 'ai/ClaudeInstanceHomeOffices/cora-2f1e43dc/midst-cache/clarissa');
+// A per-user cache, never inside a repository.
+export const DEFAULT_CACHE = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'midst-format', 'clarissa');
 
 export class FetchError extends Error {}
 
