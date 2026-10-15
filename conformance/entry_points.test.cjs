@@ -12,18 +12,21 @@ let notZip;
 let tmp;
 // Stand-in midst-editor trees for provenance.cjs: util.ts with the trailing-<br> rule, and the schema file beside
 // it, built from the harness's own normalise.cjs so the 'same' tree matches it exactly.
-const editorTree = (name, schema) => {
+const editorTree = (name, schema, zeroWidth = (u) => u) => {
   const root = path.join(tmp, name, 'src');
   fs.mkdirSync(path.join(root, 'main'), { recursive: true });
   fs.mkdirSync(path.join(root, 'shared'));
   const mine = fs.readFileSync(path.join(DIR, 'normalise.cjs'), 'utf8');
   const rule = mine.match(/const TRAILING_BREAK = .*;/)[0];
-  fs.writeFileSync(path.join(root, 'main', 'util.ts'), `${rule}\n`);
+  // The zero-width declarations, from ZERO_WIDTH_CHARS to the end of ZERO_WIDTH_ONLY_ELEMENT.
+  const from = mine.indexOf('const ZERO_WIDTH_CHARS =');
+  const to = mine.indexOf(');\n', mine.indexOf('const ZERO_WIDTH_ONLY_ELEMENT =')) + 3;
+  fs.writeFileSync(path.join(root, 'main', 'util.ts'), zeroWidth(`${rule}\n${mine.slice(from, to)}`));
   fs.writeFileSync(path.join(root, 'shared', 'poemExtensions.ts'), schema(mine.slice(mine.indexOf('const extensions = ['), mine.indexOf('];', mine.indexOf('const extensions = [')) + 2)));
   return path.join(root, 'main', 'util.ts');
 };
 const same = (block) => block.replace('const extensions = [', 'const poemExtensions = [');
-let utilSame, utilFlipped, utilNoBlock;
+let utilSame, utilFlipped, utilNoBlock, utilZeroWidth;
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-entry-'));
   empty = path.join(tmp, 'empty');
@@ -33,6 +36,8 @@ beforeAll(() => {
   utilSame = editorTree('same', same);
   utilFlipped = editorTree('flipped', (b) => same(b).replace('strike: false', 'strike: true'));
   utilNoBlock = editorTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
+  // The editor's zero-width set without U+2060: the harness would no longer mirror the converter.
+  utilZeroWidth = editorTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
@@ -61,6 +66,7 @@ const CASES = [
   ['provenance: control, the same schema', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilSame }), [], 0, true],
   ['provenance: an option flipped', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilFlipped }), ['provenance-mismatch'], 1, true],
   ['provenance: no schema block', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilNoBlock }), ['provenance-mismatch'], 1, true],
+  ['provenance: the zero-width rule differs', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilZeroWidth }), ['provenance-mismatch'], 1, true],
 ];
 
 describe('entry points fail loudly as JSONL on stderr', () => {
@@ -95,6 +101,7 @@ describe('entry points fail loudly as JSONL on stderr', () => {
 test.each([
   ['an option flipped', () => utilFlipped, { stage: 'options', count: 2 }],
   ['no schema block', () => utilNoBlock, { stage: 'block-not-found' }],
+  ['the zero-width rule differs', () => utilZeroWidth, { stage: 'zero-width' }],
 ])('provenance: %s is logged with its stage', (_name, util, fields) => {
   const r = run('provenance.cjs', [], { MIDST_EDITOR_UTIL_TS: util() });
   const [rec] = r.stderr.trim().split('\n').map((l) => JSON.parse(l));

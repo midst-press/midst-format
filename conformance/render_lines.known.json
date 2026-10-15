@@ -23,12 +23,6 @@
     "editorFewer": 1,
     "why": "editor shows FEWER lines (midst-editor #15)"
   },
-  "synthetic--rangy-span": {
-    "differ": 7,
-    "editorMore": 7,
-    "editorFewer": 0,
-    "why": "a selection-marker span outside any paragraph becomes its own paragraph (midst-editor #15)"
-  },
   "synthetic--tabs": {
     "differ": 1,
     "editorMore": 1,

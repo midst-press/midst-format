@@ -32,3 +32,16 @@ const rx = (t) => (t.match(/TRAILING_BREAK =\s*(\/.*\/gi);/) || [])[1];
 const up = rx(src), here = rx(mine);
 console.log('TRAILING_BREAK MATCH:', !!up && up === here);
 if (!up || up !== here) mismatch('trailing-break');
+// The zero-width rule must also be identical (midst-editor GitHub #31): each declaration, compared with all
+// whitespace removed (the editor's formatter wraps them), and `export ` ignored.
+const decl = (t, name) => {
+  const at = t.search(new RegExp(`(?:export )?const ${name} =`));
+  if (at < 0) return null;
+  const end = t.indexOf(';\n', at);
+  return end < 0 ? null : t.slice(at, end + 1).replace(/^export /, '').replace(/\s+/g, '');
+};
+for (const name of ['ZERO_WIDTH_CHARS', 'ZERO_WIDTH_ENTITY_CODES', 'ZERO_WIDTH_ENTITY', 'ZERO_WIDTH_ONLY_ELEMENT']) {
+  const u = decl(src, name), h = decl(mine, name);
+  console.log(`${name} MATCH:`, !!u && u === h);
+  if (!u || u !== h) mismatch('zero-width');
+}

@@ -18,7 +18,7 @@ const EVENT = /^[a-z]+(-[a-z]+)*$/;
 // A class name: an identifier, as a constructor's own name is.
 const TOKEN = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
 // Where a failure happened: verify_lib's and markloss's stages, and provenance's kinds of disagreement.
-const STAGES = ['list', 'extract', 'read', 'parse', 'normalise', 'convert', 'verify', 'write', 'options', 'block-not-found', 'no-options', 'trailing-break'];
+const STAGES = ['list', 'extract', 'read', 'parse', 'normalise', 'convert', 'verify', 'write', 'options', 'block-not-found', 'no-options', 'trailing-break', 'zero-width'];
 // The suite's own ConformanceError codes, and Node's: errno names, ERR_* and MODULE_NOT_FOUND.
 const OWN_CODES = ['ENTRY_COUNT', 'EXTRACTED_COUNT', 'NO_FRAMES_ARRAY', 'NO_B_META', 'HISTORY_LONGER_THAN_FRAMES'];
 const isCode = (c) =>

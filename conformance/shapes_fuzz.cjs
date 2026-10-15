@@ -32,7 +32,6 @@ const OPEN = {
   font: 'midst-editor #15: a trailing <br> inside <font>/<sup>/<sub> still doubles',
   divLine: 'midst-editor #15: a non-empty <div>a<br></div> still doubles',
   plainTab: 'midst-editor #17: a plain tab (not in a white-space: pre span) showed as one space in the old app',
-  markOutside: 'midst-editor #15: a selection-marker span outside any paragraph becomes its own paragraph',
   hiddenAfterBr: 'midst-editor #15: a <br> followed only by invisible inline content (a selection marker, an empty or whitespace-only tag) is not drawn by a browser, but the converter keeps it',
   emptyLine: 'midst-editor #15: a paragraph with nothing visible (spaces, newlines, hidden markers) is zero height in a browser, one line in the editor',
 };
@@ -132,7 +131,7 @@ function genLine(r) {
 }
 function genDoc(r) {
   const n = 1 + r.int(5);
-  return { lines: Array.from({ length: n }, () => genLine(r)), markFirst: on('markOutside') && r.chance(0.2) }; // OPEN.markOutside
+  return { lines: Array.from({ length: n }, () => genLine(r)), markFirst: r.chance(0.2) }; // a selection marker outside any paragraph: an open class until midst-editor GitHub #31 fixed it, now generated always
 }
 
 // ---- histories: how the document changes between frames -------------------------------------------
@@ -398,7 +397,9 @@ async function main() {
   for (const k of OPEN_ON) console.log(`  open: ${k}  ${OPEN[k]}`);
   const R = await openRenderer();
   // Controls: a document of a known open class must FAIL and a plain one must PASS, or the checks are inert.
-  const bad = { lines: [{ kind: 'p', kids: [{ t: 'br' }, { t: 'mark' }], trailingBr: false }], markFirst: false };
+  // A <br> then only a whitespace-only tag (hiddenAfterBr, still open). The selection-marker form of this case
+  // is fixed since midst-editor GitHub #31 (the converter drops zero-width-only elements), so it no longer fails.
+  const bad = { lines: [{ kind: 'p', kids: [{ t: 'br' }, { t: 'wrap', tag: 'em', kids: [{ t: 'sp', n: 1 }] }], trailingBr: false }], markFirst: false };
   const good = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: true }, { kind: 'blank' }], markFirst: false };
   const cb = await check(appendCase(bad), R),
     cg = await check(appendCase(good), R);
