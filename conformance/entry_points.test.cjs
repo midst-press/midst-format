@@ -10,12 +10,29 @@ const DIR = __dirname;
 let empty;
 let notZip;
 let tmp;
+// Stand-in midst-editor trees for provenance.cjs: util.ts with the trailing-<br> rule, and the schema file beside
+// it, built from the harness's own normalise.cjs so the 'same' tree matches it exactly.
+const editorTree = (name, schema) => {
+  const root = path.join(tmp, name, 'src');
+  fs.mkdirSync(path.join(root, 'main'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'shared'));
+  const mine = fs.readFileSync(path.join(DIR, 'normalise.cjs'), 'utf8');
+  const rule = mine.match(/const TRAILING_BREAK = .*;/)[0];
+  fs.writeFileSync(path.join(root, 'main', 'util.ts'), `${rule}\n`);
+  fs.writeFileSync(path.join(root, 'shared', 'poemExtensions.ts'), schema(mine.slice(mine.indexOf('const extensions = ['), mine.indexOf('];', mine.indexOf('const extensions = [')) + 2)));
+  return path.join(root, 'main', 'util.ts');
+};
+const same = (block) => block.replace('const extensions = [', 'const poemExtensions = [');
+let utilSame, utilFlipped, utilNoBlock;
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-entry-'));
   empty = path.join(tmp, 'empty');
   fs.mkdirSync(empty);
   notZip = path.join(tmp, 'not-a-zip.midst.zip');
   fs.writeFileSync(notZip, 'this is not a zip archive');
+  utilSame = editorTree('same', same);
+  utilFlipped = editorTree('flipped', (b) => same(b).replace('strike: false', 'strike: true'));
+  utilNoBlock = editorTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
@@ -40,6 +57,10 @@ const CASES = [
   ['one: no argument', 'one.cjs', [], () => ({}), ['usage'], 2, true],
   ['build: no editor source', 'build.mjs', [], () => ({}), ['build-env-not-set'], 2, true],
   ['one: not a zip', 'one.cjs', [() => notZip], () => ({ MIDST_OUT: tmp }), ['harness-error'], 2, false],
+  ['provenance: no util.ts', 'provenance.cjs', [], () => ({}), ['usage'], 2, true],
+  ['provenance: control, the same schema', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilSame }), [], 0, true],
+  ['provenance: an option flipped', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilFlipped }), ['provenance-mismatch'], 1, true],
+  ['provenance: no schema block', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilNoBlock }), ['provenance-mismatch'], 1, true],
 ];
 
 describe('entry points fail loudly as JSONL on stderr', () => {
@@ -68,4 +89,15 @@ describe('entry points fail loudly as JSONL on stderr', () => {
     if (events[0] === 'harness-error') expect(records[0].class).toMatch(/^[A-Za-z0-9_$.:-]{1,64}$/);
     if (printsHuman) expect(r.stdout.trim()).not.toBe('');
   });
+});
+
+// Which disagreement provenance names matters as much as that it names one.
+test.each([
+  ['an option flipped', () => utilFlipped, { stage: 'options', count: 2 }],
+  ['no schema block', () => utilNoBlock, { stage: 'block-not-found' }],
+])('provenance: %s is logged with its stage', (_name, util, fields) => {
+  const r = run('provenance.cjs', [], { MIDST_EDITOR_UTIL_TS: util() });
+  const [rec] = r.stderr.trim().split('\n').map((l) => JSON.parse(l));
+  const { ts, level, script, event, ...rest } = rec;
+  expect(rest).toEqual(fields);
 });
