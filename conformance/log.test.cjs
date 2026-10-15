@@ -328,14 +328,21 @@ describe('reportHarnessError: a fixed line for the person, the class and code fo
     expect(logged[0].fields).toEqual({ class: 'TypeError' });
     expect(out).not.toContain(SECRET_WORD);
   });
-  test('codeOf takes only codes from the vocabulary, and only from objects', () => {
-    expect(codeOf({ code: 'MODULE_NOT_FOUND' })).toBe('MODULE_NOT_FOUND');
-    expect(codeOf({ code: 'ERR_REQUIRE_ESM' })).toBe('ERR_REQUIRE_ESM');
-    expect(codeOf({ code: 'NO_B_META' })).toBe('NO_B_META');
-    expect(codeOf({ code: 'LOVE' })).toBeUndefined();
-    expect(codeOf({ code: 3 })).toBeUndefined();
+  const err = (code) => Object.assign(new Error('x'), { code });
+  test('codeOf takes only codes from the vocabulary, and only from errors', () => {
+    expect(codeOf(err('MODULE_NOT_FOUND'))).toBe('MODULE_NOT_FOUND');
+    expect(codeOf(err('ERR_REQUIRE_ESM'))).toBe('ERR_REQUIRE_ESM');
+    expect(codeOf(err('NO_B_META'))).toBe('NO_B_META');
+    expect(codeOf(err('LOVE'))).toBeUndefined();
+    expect(codeOf(err(3))).toBeUndefined();
     expect(codeOf('ENOENT')).toBeUndefined();
     expect(codeOf(null)).toBeUndefined();
+  });
+  test('a code on parsed data is ignored, even one shaped like a real code', () => {
+    expect(codeOf(JSON.parse('{"code":"ERR_MOONLIGHT"}'))).toBeUndefined();
+    expect(codeOf(JSON.parse('{"code":"ENOENT"}'))).toBeUndefined();
+    const { logged } = report(JSON.parse('{"code":"ERR_MOONLIGHT"}'));
+    expect(logged[0].fields).toEqual({ class: 'Object' });
   });
   test('the default report writes the human line to stdout (fd 1) and the record to stderr (fd 2)', () => {
     const spy = jest.spyOn(fs, 'writeSync').mockImplementation((fd, b, o, n) => n);

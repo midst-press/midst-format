@@ -75,8 +75,10 @@ const classOf = (e) => {
   return TOKEN.test(name) ? name : 'unnamed';
 };
 
-// A thrown value's code, when it is one the log may carry (ours, or Node's own: ENOENT, MODULE_NOT_FOUND, ...).
-const codeOf = (e) => (e !== null && typeof e === 'object' && isCode(e.code) ? e.code : undefined);
+// A thrown error's code, when it is one the log may carry (ours, or Node's own: ENOENT, MODULE_NOT_FOUND, ...).
+// Only from an Error: Node sets `code` on its errors, and a parsed data object is never one, so its own `code`
+// property cannot reach the log (clement-7074f29f).
+const codeOf = (e) => (e instanceof Error && isCode(e.code) ? e.code : undefined);
 
 // A harness error, reported for a person and for the log: the class and code only, never the message.
 // `out` and `log` are for tests.
