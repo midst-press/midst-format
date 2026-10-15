@@ -1,9 +1,14 @@
 const fs=require('fs'),path=require('path'),os=require('os');
 const {execFileSync}=require('child_process');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report. An uncaught throw is
+// logged by class only and exits 2.
+const {logEvent,installUncaughtHandler}=require('./log.cjs');
+installUncaughtHandler();
+const zip=process.argv[2];
+if(!zip){console.log('usage: node conformance/one.cjs <poem.midst.zip>');logEvent('error','usage');process.exit(2);}
 const {convertMidstFile}=require('../out/converter.cjs');
 const {normalise}=require('./normalise.cjs');
 const step=(i,c)=>i.slice(0,c.front)+c.inserted+i.slice(i.length-c.end);
-const zip=process.argv[2];
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'one-'));
 // Extract EVERYTHING, then pick the .midst off DISK. An NFD filename cannot be passed back
 // through argv reliably -- that is what broke mónica-de-la-torre--december.

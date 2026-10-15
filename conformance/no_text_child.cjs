@@ -8,7 +8,7 @@ const fs = require('fs'),
 const { MARK, CASES, zipName } = require('./no_text_cases.cjs');
 
 function child(dir) {
-  const { verifyZip, formatRow, recordRow, summarise } = require('./verify_lib.cjs');
+  const { verifyZip, formatRow, recordRow, summarise, logRow, logSummary } = require('./verify_lib.cjs');
   const { normalise } = require('./normalise.cjs');
   // A stand-in converter: each change replaces the whole text with the next frame.
   const converter = (mode) => (old) => {
@@ -25,11 +25,16 @@ function child(dir) {
   const rows = Object.keys(CASES).map((c, i) =>
     verifyZip(path.join(dir, zipName(c)), i + 1, { convertMidstFile: converter(CASES[c].convert), normalise, outDir: path.join(dir, 'out') }),
   );
-  rows.forEach((r) => console.log(formatRow(r)));
+  rows.forEach((r) => {
+    console.log(formatRow(r));
+    logRow(r); // the real logEvent, to stderr: the test searches it for markers too
+  });
   fs.writeFileSync(path.join(dir, 'rows.json'), JSON.stringify(rows.map(recordRow)));
   // The exit status, for: every row; the passing row alone; that row with its control unfired; no rows.
   const pass = rows[0];
-  const codes = [rows, [pass], [{ ...pass, control: false }], []].map((r) => summarise(r).exitCode);
+  const summaries = [rows, [pass], [{ ...pass, control: false }], []].map((r) => summarise(r));
+  summaries.forEach((s) => logSummary(s));
+  const codes = summaries.map((s) => s.exitCode);
   fs.writeFileSync(path.join(dir, 'exit.json'), JSON.stringify(codes));
 }
 

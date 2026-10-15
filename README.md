@@ -94,6 +94,12 @@ To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, and the rules
     npm run conformance:coverage   # how much of the editor's converter the corpus runs; numbers only
     npm run conformance    # the real corpus. Requires MIDST_CORPUS to point at it. Never in public CI.
 
+**Stdout is the report; stderr is the error log.** Every failure a script finds or meets is logged on stderr
+as one JSON object per line (`conformance/log.cjs`), for example
+`{"ts":"…","level":"error","script":"verify_all","event":"poem-error","index":3,"stage":"convert","class":"TypeError"}`.
+The fields are an allowlist of numbers and identifiers: never a message, never text from a poem. A throw that
+nothing caught is logged by its class alone, and the script exits 2. Usage and setup messages are on stdout.
+
 ⚠️ **Dependencies are pinned exactly, not with a caret.** `@tiptap/*` at `^2.5.4` resolves to 2.27.3
 today, and HTML generation is version-sensitive, so a caret would verify behaviour the editor does not
 have. This was measured, not assumed: the first harness build silently installed 2.27.3.

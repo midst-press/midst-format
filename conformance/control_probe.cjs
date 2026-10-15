@@ -1,10 +1,15 @@
 const fs=require('fs'),path=require('path'),os=require('os');
 const {execFileSync}=require('child_process');
-const {convertMidstFile}=require('../out/converter.cjs');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report. An uncaught throw is
+// logged by class only and exits 2.
+const {logEvent,installUncaughtHandler}=require('./log.cjs');
+installUncaughtHandler();
 const step=(i,c)=>i.slice(0,c.front)+c.inserted+i.slice(i.length-c.end);
 const replay=h=>h.reduce((a,c)=>step(a,c),'');
 const z=process.argv[2];
-if(!z){console.error('usage: node conformance/control_probe.cjs <poem.midst.zip>');process.exit(2);}
+if(!z){console.log('usage: node conformance/control_probe.cjs <poem.midst.zip>');logEvent('error','usage');process.exit(2);}
+// Required after the usage check, so it is reported without a built harness.
+const {convertMidstFile}=require('../out/converter.cjs');
 const name=require('path').basename(z,'.midst.zip');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'midst-'));
 execFileSync('unzip',['-q','-j','-o',z,`${name}.midst`,'-d',tmp]);

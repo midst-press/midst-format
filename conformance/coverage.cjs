@@ -20,6 +20,9 @@ const fs = require('fs'),
   path = require('path'),
   crypto = require('crypto');
 const { spawnSync } = require('child_process');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
+installUncaughtHandler();
 
 const ROOT = path.join(__dirname, '..');
 const BUNDLE_MAP = path.join(ROOT, 'out', 'converter.cjs.map');
@@ -210,6 +213,7 @@ function main() {
     console.log(`control 1 (draft-marker line ${marker}: covered with the marker fixture, uncovered without): ${c1 ? 'holds' : `FAILED (${withAll}, ${withoutMeta})`}`);
     console.log(`control 2 (raw c8 credited ${rawCredited} of ${outside.length} code lines outside the bundle; all ${outside.length} are 0 in the written JSON): ${c2 ? 'holds' : 'FAILED'}`);
     ok = c1 && c2;
+    if (!ok) logEvent('error', 'control-not-fired', { count: [c1, c2].filter((c) => !c).length });
   } finally {
     fs.rmSync(without, { recursive: true, force: true });
   }
@@ -218,6 +222,8 @@ function main() {
 try {
   main();
 } catch (e) {
-  console.error(e.message);
+  // Our own messages name files and counts, never poem text; the log carries the class only.
+  console.log(e.message);
+  reportHarnessError(e);
   process.exit(2);
 }
