@@ -167,8 +167,11 @@ class Failure extends Error {
 }
 
 /** Recursively collect candidate files; other extensions are counted, never named. */
-function findFiles(dir, out) {
-  for (const name of readdirSync(dir)) {
+export function findFiles(dir, out) {
+  // An unreadable directory is counted, never thrown: the error text would carry a path from the real archive.
+  let names;
+  try { names = readdirSync(dir); } catch { out.unreadableDirs++; return out; }
+  for (const name of names) {
     const p = join(dir, name);
     let st;
     try { st = statSync(p); } catch { out.other++; continue; }
@@ -334,9 +337,12 @@ export function measure(files, otherCount = 0) {
 function main() {
   const dir = process.argv[2];
   if (!dir) { process.stderr.write("usage: measure_typing_rates.mjs <corpus-dir>\n"); process.exit(2); }
-  const found = findFiles(dir, { zips: [], plain: [], other: 0 });
+  try { readdirSync(dir); } catch (e) { process.stderr.write(`cannot read the corpus directory you gave (${e.code})\n`); process.exit(2); }
+  const found = findFiles(dir, { zips: [], plain: [], other: 0, unreadableDirs: 0 });
   const files = [...found.zips.map((path) => ({ path, isZip: true })), ...found.plain.map((path) => ({ path, isZip: false }))];
-  process.stdout.write(JSON.stringify(measure(files, found.other), null, 2) + "\n");
+  const result = measure(files, found.other);
+  result.unreadableDirs = found.unreadableDirs;
+  process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();

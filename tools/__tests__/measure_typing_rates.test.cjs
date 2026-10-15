@@ -100,3 +100,19 @@ test('measure(): failures counted by kind, no names', () => {
   expect(r.skippedByKind).toEqual({ non_midst_extension: 1, unknown_format: 1 });
   expect(JSON.stringify(r).includes(work)).toBe(false);
 });
+
+test('findFiles counts an unreadable subdirectory instead of throwing its path', () => {
+  const root = fs.mkdtempSync(path.join(work, 'corpus-'));
+  fs.writeFileSync(path.join(root, 'a.midst'), '');
+  const locked = path.join(root, 'locked');
+  fs.mkdirSync(locked);
+  fs.writeFileSync(path.join(locked, 'b.midst'), '');
+  fs.chmodSync(locked, 0o000);
+  try {
+    const out = tool.findFiles(root, { zips: [], plain: [], other: 0, unreadableDirs: 0 });
+    expect(out.unreadableDirs).toBe(1);
+    expect(out.plain).toEqual([path.join(root, 'a.midst')]);
+  } finally {
+    fs.chmodSync(locked, 0o700);
+  }
+});

@@ -341,7 +341,17 @@ describe('failure modes', () => {
     const out = path.join(work, 'env.midst');
     const r = run(['--rates', writeRates(RATES), '--out', out], { MIDST_LONG_TEXT: textPath });
     expect(r.status).toBe(0);
-    expect(r.stdout).toMatch(/^chars=\d+ entries=\d+ bytes=\d+ seconds=[\d.]+\n$/);
+    expect(r.stdout).toMatch(/^chars=\d+ entries=\d+ bytes=\d+ seconds=[\d.]+ text=unpinned\n$/);
+  });
+  test('a default cache that does not match the pinned sha256 is refused, and nothing is written', () => {
+    const cache = path.join(work, 'xdg');
+    fs.mkdirSync(path.join(cache, 'midst-format', 'clarissa'), { recursive: true });
+    fs.copyFileSync(textPath, path.join(cache, 'midst-format', 'clarissa', 'clarissa.txt'));
+    const out = path.join(work, 'altered.midst');
+    const r = run(['--rates', writeRates(RATES), '--out', out], { XDG_CACHE_HOME: cache, MIDST_LONG_TEXT: '' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/does not match the sha256 pinned/);
+    expect(fs.existsSync(out)).toBe(false);
   });
   test('an output path inside the repository is refused', () => {
     const r = run(['--text', textPath, '--rates', writeRates(RATES), '--out', path.join(REPO, 'should-not-exist.midst')]);

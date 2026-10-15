@@ -21,6 +21,7 @@
 // against '<', and e never starts with '<'). A backspace is the reverse. Enter appends `<p></p>`: front = htmlLen,
 // end = 0. The first keystroke of the document inserts the whole `<p>c</p>` (front 0, end 0). The tests replay the file
 // with the editor's own `step` to prove this, so no whole string is ever diffed here.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -32,6 +33,7 @@ const REPO = path.resolve(HERE, '..');
 // tools/fetch_clarissa.mjs's default cache.
 const DEFAULT_TEXT = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'midst-format', 'clarissa', 'clarissa.txt');
 const DEFAULT_RATES = path.join(HERE, 'long_midst_rates.json');
+const MANIFEST = path.join(HERE, 'clarissa_source.json');
 const FLUSH_AT = 1 << 20;
 
 export class UsageError extends Error {}
@@ -375,7 +377,15 @@ export function main(argv, env = process.env, stdout = console.log, stderr = con
     throw new UsageError(`cannot read rates file ${a.rates}: ${e.message}`);
   }
   rates = validateRates(resolveRates(rates, a.overrides, stderr));
-  const paragraphs = leadingParagraphs(paragraphsOf(fs.readFileSync(a.text, 'utf8')), a.fraction);
+  // The text is hashed against the pinned manifest every run. The default cache MUST match it: a truncated or edited
+  // cache is refused. A text given with --text or MIDST_LONG_TEXT may differ (the tests use invented text), and the
+  // output line says which it was, so tools/size_search.mjs can refuse anything but the pinned text.
+  const source = fs.readFileSync(a.text, 'utf8');
+  const pinned = crypto.createHash('sha256').update(source).digest('hex') === JSON.parse(fs.readFileSync(MANIFEST, 'utf8')).sha256;
+  if (!pinned && path.resolve(a.text) === DEFAULT_TEXT) {
+    throw new UsageError(`${a.text} does not match the sha256 pinned in tools/clarissa_source.json: rebuild it with "node tools/fetch_clarissa.mjs"`);
+  }
+  const paragraphs = leadingParagraphs(paragraphsOf(source), a.fraction);
 
   const t0 = process.hrtime.bigint();
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -393,7 +403,7 @@ export function main(argv, env = process.env, stdout = console.log, stderr = con
     fs.closeSync(fd);
   }
   const secs = Number(process.hrtime.bigint() - t0) / 1e9;
-  stdout(`chars=${r.chars} entries=${r.entries} bytes=${bytes} seconds=${secs.toFixed(1)}`);
+  stdout(`chars=${r.chars} entries=${r.entries} bytes=${bytes} seconds=${secs.toFixed(1)} text=${pinned ? 'pinned' : 'unpinned'}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

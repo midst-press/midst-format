@@ -34,6 +34,10 @@ export const THRESHOLDS = {
   sliderMs: { max: 250, label: 'slider response p95 < 250 ms' },
 };
 
+// How many samples each spec is meant to take (the editor's KEYS and SLIDER_POSITIONS, the web's SCRUB_POSITIONS).
+// A step that died part-way leaves fewer, and a p95 over the survivors must not pass.
+export const EXPECTED_SAMPLES = { keys: 100, positions: 6 };
+
 const usage = () => {
   console.error('usage: node tools/size_search.mjs [--editor DIR] [--web DIR] [--seed N] [--results DIR] [--start 1] ' +
     '[--level-timeout-min 60] [--web-port 8197] [--no-rerun] [--keep-files]');
@@ -150,22 +154,30 @@ async function startWebServer(o, env) {
   });
   let exited = null;
   child.on('close', (code) => { exited = code; });
+  const stop = () => {
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+    } catch (e) {
+      if (e.code !== 'ESRCH') console.error(`could not stop the web server (pid ${child.pid}): ${e.message}`);
+    }
+  };
   const deadline = Date.now() + 15 * 60_000;
   for (;;) {
-    if (exited !== null) throw new Error(`the web server exited with ${exited} before it was ready; log: ${log}\n${readLogTail(log)}`);
-    if (Date.now() > deadline) throw new Error(`the web server was not ready after 15 min; log: ${log}\n${readLogTail(log)}`);
+    // A server that never became ready is stopped before the error goes up, so it does not keep the port.
+    if (exited !== null) {
+      stop();
+      throw new Error(`the web server exited with ${exited} before it was ready; log: ${log}\n${readLogTail(log)}`);
+    }
+    if (Date.now() > deadline) {
+      stop();
+      throw new Error(`the web server was not ready after 15 min; log: ${log}\n${readLogTail(log)}`);
+    }
     // eslint-disable-next-line no-await-in-loop
     if ((await httpStatus(o.webPort)) === 200) break;
     // eslint-disable-next-line no-await-in-loop
     await new Promise((r) => { setTimeout(r, 2000); });
   }
-  return () => {
-    try {
-      process.kill(-child.pid, 'SIGTERM');
-    } catch (e) {
-      console.error(`could not stop the web server (pid ${child.pid}): ${e.message}`);
-    }
-  };
+  return stop;
 }
 
 const num = (x) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
@@ -205,21 +217,29 @@ export function judge(ed, wb) {
     webScrubScreenP95Ms: num(ws.scrubScreenMs?.p95),
   };
   const lt = (v, max) => v !== null && v < max;
+  const full = (d, n) => typeof d?.n === 'number' && d.n >= n;
+  const clean = (r) => !!r && Array.isArray(r.failures) && r.failures.length === 0;
   const pace = (a, s) => a !== null && s !== null && a >= THRESHOLDS.paceShare.min * s;
   const crashed = (r) => !r || r.failures?.some((f) => f.step === 'crash' || f.step === 'harness');
   const checks = {
     editorOpen: lt(m.editorOpenMs, THRESHOLDS.openMs.max),
-    editorKeystroke: lt(m.editorKeystrokeDomP95Ms, THRESHOLDS.keystrokeP95Ms.max),
+    editorKeystroke: lt(m.editorKeystrokeDomP95Ms, THRESHOLDS.keystrokeP95Ms.max) && full(es.keystrokeDomMs, EXPECTED_SAMPLES.keys),
     editorSave: lt(m.editorSaveMs, THRESHOLDS.saveMs.max),
     replayPace: pace(m.replayAchievedFps, m.replaySetFps),
-    replaySlider: lt(m.replaySliderP95Ms, THRESHOLDS.sliderMs.max),
+    replaySlider: lt(m.replaySliderP95Ms, THRESHOLDS.sliderMs.max) && full(erep.sliderDomMs, EXPECTED_SAMPLES.positions),
     webPace: pace(m.webAchievedFps, m.webSetFps),
-    webScrub: lt(m.webScrubP95Ms, THRESHOLDS.sliderMs.max),
+    webScrub: lt(m.webScrubP95Ms, THRESHOLDS.sliderMs.max) && full(ws.scrubDomMs, EXPECTED_SAMPLES.positions),
     editorNoCrash: !crashed(ed),
     webNoCrash: !crashed(wb),
+    // Any recorded failure fails the level, whichever step it was in.
+    editorNoFailures: clean(ed),
+    webNoFailures: clean(wb),
   };
   return { measures: m, checks, pass: Object.values(checks).every(Boolean) };
 }
+
+// A spec that exited non-zero, wrote no result, or ran out of time fails the level even if its numbers look fine.
+export const levelPasses = (judgement, errors) => judgement.pass && errors.length === 0;
 
 function machine(edResult, wbResult) {
   const cpus = os.cpus();
@@ -256,7 +276,7 @@ async function runLevel(o, env, denominator) {
   const genLog = path.join(dir, 'generate.log');
   const g = await run('node', ['tools/generate_long_midst.mjs', '--seed', String(o.seed), '--fraction', fraction, '--out', poem],
     { cwd: FORMAT, env, log: genLog, timeoutMs: o.levelTimeoutMin * 60_000 });
-  const gen = /chars=(\d+) entries=(\d+) bytes=(\d+) seconds=([\d.]+)/.exec(fs.existsSync(genLog) ? fs.readFileSync(genLog, 'utf8') : '');
+  const gen = /chars=(\d+) entries=(\d+) bytes=(\d+) seconds=([\d.]+) text=pinned/.exec(fs.existsSync(genLog) ? fs.readFileSync(genLog, 'utf8') : '');
   if (g.code !== 0 || !gen) {
     fail('generate', `exit ${g.code}${g.timedOut ? ' (timeout)' : ''}\n${readLogTail(genLog)}`, genLog);
     level.pass = false;
@@ -303,6 +323,7 @@ async function runLevel(o, env, denominator) {
   Object.assign(level, { editor: results.editor, web: results.web });
   const j = judge(results.editor, results.web);
   Object.assign(level, j);
+  level.pass = levelPasses(j, level.errors);
   if (!o.keepFiles) {
     try {
       fs.unlinkSync(poem);
@@ -340,6 +361,8 @@ function markdown(o, levels, summary, mach) {
     ['  web scrub < 250 ms', (l) => mark(l.checks?.webScrub)],
     ['  editor no crash', (l) => mark(l.checks?.editorNoCrash)],
     ['  web no crash', (l) => mark(l.checks?.webNoCrash)],
+    ['  editor: no step failed', (l) => mark(l.checks?.editorNoFailures)],
+    ['  web: no step failed', (l) => mark(l.checks?.webNoFailures)],
     ['editor failures (steps)', (l) => (l.editor?.failures ?? []).map((f) => f.step).join(', ') || (l.editor ? 'none' : 'no result')],
     ['web failures (steps)', (l) => (l.web?.failures ?? []).map((f) => f.step).join(', ') || (l.web ? 'none' : 'no result')],
     ['LEVEL', (l) => (l.pass ? 'PASS' : 'FAIL')],

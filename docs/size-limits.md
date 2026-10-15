@@ -44,14 +44,15 @@ real edits, and the parameter file's `note` says why they are left out.
 
 These are **provisional** and are Stuart's to change. They live in `THRESHOLDS` in `tools/size_search.mjs`.
 
-| Measure                                            | Passes when                                                                                                       |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Editor open                                        | under 5 s                                                                                                         |
-| Keystroke to the editor's DOM, p95 over 100 keys   | under 100 ms                                                                                                      |
-| Editor save                                        | under 2 s                                                                                                         |
-| Replay pace, and web player pace                   | at least 90% of the set rate of 16.67 frames per second (the 90% share is the measurement's choice, not Stuart's) |
-| Replay slider, and web scrub, p95 over 6 positions | under 250 ms                                                                                                      |
-| Editor and web page                                | no crash, no renderer gone, no uncaught page error                                                                |
+| Measure                                                                                       | Passes when                                                                                                       |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Editor open                                                                                   | under 5 s                                                                                                         |
+| Keystroke to the editor's DOM, p95 over 100 keys                                              | under 100 ms                                                                                                      |
+| Editor save                                                                                   | under 2 s                                                                                                         |
+| Replay pace, and web player pace                                                              | at least 90% of the set rate of 16.67 frames per second (the 90% share is the measurement's choice, not Stuart's) |
+| Replay slider, and web scrub: the slowest of 6 positions (with 6 samples, p95 is the maximum) | under 250 ms                                                                                                      |
+| Editor and web page                                                                           | no crash, no renderer gone, no uncaught page error                                                                |
+| Every step                                                                                    | no failure recorded, every sample taken (100 keys, 6 positions), and each spec exited cleanly                     |
 
 Web load time is reported but has no threshold.
 
@@ -120,6 +121,9 @@ MIDST_KEY_SCHEME=legacy MIDST_POEM_LIST=bundled MIDST_SIZE_FILE=/path/poem.midst
 
 **Largest passing level: 1/256** (20,045 characters, 42,912 history entries, 3.5 MB).
 **Smallest failing level: 1/128.** Only the editor's Replay fails there, on pace and on the slider.
+
+This run was judged by an earlier driver that ignored failed steps and spec errors. Its saved results, re-judged
+under the current verdict, give the same pass or fail at every level.
 
 Times are in milliseconds. "–" means the step produced no number because an earlier step failed.
 
