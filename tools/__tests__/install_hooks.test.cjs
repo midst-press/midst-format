@@ -14,7 +14,7 @@ let repo;
 let fakeBin;
 let emptyBin;
 
-// A stand-in for pre-commit: `pre-commit install` writes the two hooks the way the real one marks
+// A stand-in for pre-commit: `pre-commit install` writes the three hooks the way the real one marks
 // them. FAKE_PRECOMMIT=one writes only the first; FAKE_PRECOMMIT=fail writes nothing and fails.
 const FAKE = `#!/bin/sh
 [ "$FAKE_PRECOMMIT" = fail ] && { echo "Cowardly refusing to install hooks" >&2; exit 1; }
@@ -22,6 +22,7 @@ hooks=$(git rev-parse --git-path hooks)
 mkdir -p "$hooks"
 echo "# ${MARK}" > "$hooks/pre-commit"
 [ "$FAKE_PRECOMMIT" = one ] || echo "# ${MARK}" > "$hooks/commit-msg"
+[ "$FAKE_PRECOMMIT" = one ] || echo "# ${MARK}" > "$hooks/pre-push"
 `;
 
 beforeEach(() => {
@@ -44,7 +45,11 @@ const hook = (name) => path.join(repo, '.git', 'hooks', name);
 
 describe('missingHooks', () => {
   it('names both hooks in a new clone', () => {
-    expect(missingHooks(repo)).toEqual(['pre-commit', 'commit-msg']);
+    expect(missingHooks(repo)).toEqual([
+      'pre-commit',
+      'commit-msg',
+      'pre-push',
+    ]);
   });
 
   it('does not count a hook that pre-commit did not write', () => {
@@ -59,7 +64,7 @@ describe('ensureHooks', () => {
     const result = ensureHooks(repo, { env: withFake() });
     expect(result).toEqual({
       ok: true,
-      message: 'Installed the git hooks: pre-commit, commit-msg.',
+      message: 'Installed the git hooks: pre-commit, commit-msg, pre-push.',
     });
     expect(missingHooks(repo)).toEqual([]);
   });
@@ -88,7 +93,7 @@ describe('ensureHooks', () => {
     expect(result.ok).toBe(false);
     expect(result.message).toContain('pre-commit was not found');
     expect(result.message).toContain('brew install pre-commit');
-    expect(missingHooks(repo)).toHaveLength(2);
+    expect(missingHooks(repo)).toHaveLength(3);
   });
 
   it('fails with pre-commit’s own words when the install fails', () => {
@@ -104,15 +109,17 @@ describe('ensureHooks', () => {
       env: withFake({ FAKE_PRECOMMIT: 'one' }),
     });
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('missing: commit-msg');
+    expect(result.message).toContain('missing: commit-msg, pre-push');
   });
 
   it('with checkOnly, installs nothing and says what to run', () => {
     const result = ensureHooks(repo, { env: withFake(), checkOnly: true });
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('missing: pre-commit, commit-msg');
+    expect(result.message).toContain(
+      'missing: pre-commit, commit-msg, pre-push'
+    );
     expect(result.message).toContain('node tools/install-hooks.cjs');
-    expect(missingHooks(repo)).toHaveLength(2);
+    expect(missingHooks(repo)).toHaveLength(3);
   });
 
   it('does nothing in CI, which runs the checks itself', () => {
@@ -120,7 +127,7 @@ describe('ensureHooks', () => {
       ok: true,
       message: '',
     });
-    expect(missingHooks(repo)).toHaveLength(2);
+    expect(missingHooks(repo)).toHaveLength(3);
   });
 
   it('does nothing where there is no clone', () => {
@@ -140,7 +147,7 @@ describe('ensureHooks', () => {
       ok: true,
       message: '',
     });
-    expect(missingHooks(repo)).toHaveLength(2);
+    expect(missingHooks(repo)).toHaveLength(3);
   });
 
   it('installs into the shared hooks directory from a worktree', () => {
