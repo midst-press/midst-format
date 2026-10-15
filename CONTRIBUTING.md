@@ -30,7 +30,7 @@ AGPL-3.0-or-later (`LICENSE`). By contributing you agree your contribution is li
   versions are pinned exactly and HTML generation changes between them (see the README).
 - The harness is built from the editor's real converter, so most commands need a checkout of
   `midst-press/midst-editor`, with `MIDST_EDITOR_SRC` set to its root (and `MIDST_EDITOR_UTIL_TS` to its
-  `src/main/util.ts` for `npm run provenance`). The README's "Running it" section lists the commands.
+  `src/main/util.ts` for `npm run provenance`, which also reads `src/shared/poemExtensions.ts` beside it). The README's "Running it" section lists the commands.
 
 ## Before you open a pull request
 
