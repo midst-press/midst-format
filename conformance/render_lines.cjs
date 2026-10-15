@@ -19,7 +19,7 @@ const fs = require('fs'),
   os = require('os');
 const { execFileSync } = require('child_process');
 // Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
-const { logEvent, installUncaughtHandler, classOf } = require('./log.cjs');
+const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
 installUncaughtHandler();
 // The ACTUAL converter (built from midst-editor's util.ts by build:harness), replayed frame by frame:
 // the editor is shown what conversion produced, not a re-parse of the source.
@@ -109,6 +109,6 @@ async function main() {
   process.exit((known ? unexpected : bad) ? 1 : 0);
 }
 main().catch((e) => {
-  logEvent('error', 'harness-error', { class: classOf(e) });
+  reportHarnessError(e);
   process.exit(2);
 });

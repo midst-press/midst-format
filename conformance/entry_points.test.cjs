@@ -56,7 +56,7 @@ const CASES = [
   ['trajectory: no argument', 'trajectory.cjs', [], () => ({}), ['usage'], 2, true],
   ['one: no argument', 'one.cjs', [], () => ({}), ['usage'], 2, true],
   ['build: no editor source', 'build.mjs', [], () => ({}), ['build-env-not-set'], 2, true],
-  ['one: not a zip', 'one.cjs', [() => notZip], () => ({ MIDST_OUT: tmp }), ['harness-error'], 2, false],
+  ['one: not a zip', 'one.cjs', [() => notZip], () => ({ MIDST_OUT: tmp }), ['harness-error'], 2, true],
   ['provenance: no util.ts', 'provenance.cjs', [], () => ({}), ['usage'], 2, true],
   ['provenance: control, the same schema', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilSame }), [], 0, true],
   ['provenance: an option flipped', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilFlipped }), ['provenance-mismatch'], 1, true],

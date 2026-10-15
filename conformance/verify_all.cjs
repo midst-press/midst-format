@@ -13,9 +13,6 @@ if (!CORPUS) {
   logEvent('error', 'corpus-not-set');
   process.exit(2);
 }
-// Required after the check above, so a missing corpus is reported without a built harness.
-const { convertMidstFile } = require('../out/converter.cjs');
-const { normalise } = require('./normalise.cjs');
 const { verifyZip, formatRow, recordRow, summarise, logRow, logSummary } = require('./verify_lib.cjs');
 fs.mkdirSync(OUT, { recursive: true });
 const zips = [];
@@ -27,6 +24,10 @@ const zips = [];
   }
 })(CORPUS);
 zips.sort();
+// Required only when there is a poem to convert, so a missing corpus and an empty one are both reported
+// without a built harness (clement-7074f29f).
+const { convertMidstFile } = zips.length ? require('../out/converter.cjs') : {};
+const { normalise } = zips.length ? require('./normalise.cjs') : {};
 const rows = [];
 // What is printed and recorded for a poem that fails is an index, counts, hashes and an error class,
 // never text. The rule and its reasons are at the top of verify_lib.cjs; no_text.test.cjs holds it.

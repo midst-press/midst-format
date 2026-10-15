@@ -21,7 +21,7 @@ const fs = require('fs'),
   crypto = require('crypto');
 const { spawnSync } = require('child_process');
 // Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
-const { logEvent, installUncaughtHandler, classOf } = require('./log.cjs');
+const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
 installUncaughtHandler();
 
 const ROOT = path.join(__dirname, '..');
@@ -224,6 +224,6 @@ try {
 } catch (e) {
   // Our own messages name files and counts, never poem text; the log carries the class only.
   console.log(e.message);
-  logEvent('error', 'harness-error', { class: classOf(e) });
+  reportHarnessError(e);
   process.exit(2);
 }

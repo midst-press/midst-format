@@ -19,7 +19,7 @@ const fs = require('fs'),
   path = require('path');
 const { execFileSync } = require('child_process');
 // Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
-const { logEvent, installUncaughtHandler, classOf } = require('./log.cjs');
+const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
 installUncaughtHandler();
 const { normalise } = require('./normalise.cjs');
 const { textOf } = require('./textexact.cjs');
@@ -385,7 +385,8 @@ function openControls() {
     const ok = r.status === 1;
     if (!ok) inert++;
     console.log(`${ok ? 'fires' : 'INERT'}  ${k.padEnd(14)} exit ${r.status}`);
-    if (!ok) logEvent('error', 'control-not-fired', { seed: SEED, case: k });
+    // `case` is the class's position in OPEN, a number; the line above names it.
+    if (!ok) logEvent('error', 'control-not-fired', { seed: SEED, case: Object.keys(OPEN).indexOf(k) });
   }
   console.log(`\n${Object.keys(OPEN).length - inert} of ${Object.keys(OPEN).length} open classes fail when generated alone (seed ${SEED}, ${N} documents)`);
   process.exit(inert ? 1 : 0);
@@ -442,7 +443,7 @@ async function main() {
   process.exit(failed || posChanged ? 1 : 0);
 }
 main().catch((e) => {
-  // The message may quote a generated document; only our own control message is safe to print.
-  logEvent('error', 'harness-error', { class: classOf(e) });
+  // The message may quote a generated document: the class and code only.
+  reportHarnessError(e);
   process.exit(2);
 });
