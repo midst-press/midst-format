@@ -18,10 +18,14 @@ const fs = require('fs'),
   os = require('os'),
   path = require('path');
 const { execFileSync } = require('child_process');
-const { convertMidstFile } = require('../out/converter.cjs');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+const { logEvent, installUncaughtHandler, classOf } = require('./log.cjs');
+installUncaughtHandler();
 const { normalise } = require('./normalise.cjs');
 const { textOf } = require('./textexact.cjs');
-const { openRenderer } = require('./render_page.cjs');
+// Required where used, so a usage error is reported without a built harness or a browser.
+const convertMidstFile = (raw) => require('../out/converter.cjs').convertMidstFile(raw);
+const openRenderer = () => require('./render_page.cjs').openRenderer();
 
 // Known open defects, each generated only under --open.
 const OPEN = {
@@ -41,7 +45,8 @@ const SEED = Number(arg('--seed', Math.floor(Math.random() * 2 ** 31)));
 const N = Number(arg('--n', 500));
 const openArg = process.argv.includes('--open') ? arg('--open', '') : null;
 const OPEN_ON = new Set(openArg === null ? [] : !openArg || openArg.startsWith('--') ? Object.keys(OPEN) : openArg.split(','));
-for (const k of OPEN_ON) if (!OPEN[k]) (console.error(`unknown open class ${k}; known: ${Object.keys(OPEN)}`), process.exit(2));
+for (const k of OPEN_ON)
+  if (!OPEN[k]) (console.log(`unknown open class ${k}; known: ${Object.keys(OPEN)}`), logEvent('error', 'usage'), process.exit(2));
 const on = (k) => OPEN_ON.has(k);
 const WITH_OPEN = OPEN_ON.size > 0;
 const EMIT = arg('--emit', null);
@@ -50,9 +55,10 @@ const MODEL = arg('--history', 'all');
 // whole editor, none, throws) fails when the counts CHANGE,
 // so a converter change that moves the replay scroll target, worse or better, needs an edit here.
 const POS_KNOWN = arg('--pos-known', null);
-if (!['all', 'append', 'edit'].includes(MODEL)) (console.error('--history must be all, append or edit'), process.exit(2));
+if (!['all', 'append', 'edit'].includes(MODEL)) (console.log('--history must be all, append or edit'), logEvent('error', 'usage'), process.exit(2));
 if (!Number.isInteger(SEED) || !Number.isInteger(N) || N < 1) {
-  console.error('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
+  console.log('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
+  logEvent('error', 'usage');
   process.exit(2);
 }
 
@@ -379,6 +385,7 @@ function openControls() {
     const ok = r.status === 1;
     if (!ok) inert++;
     console.log(`${ok ? 'fires' : 'INERT'}  ${k.padEnd(14)} exit ${r.status}`);
+    if (!ok) logEvent('error', 'control-not-fired', { seed: SEED, case: k });
   }
   console.log(`\n${Object.keys(OPEN).length - inert} of ${Object.keys(OPEN).length} open classes fail when generated alone (seed ${SEED}, ${N} documents)`);
   process.exit(inert ? 1 : 0);
@@ -394,7 +401,12 @@ async function main() {
   const good = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: true }, { kind: 'blank' }], markFirst: false };
   const cb = await check(appendCase(bad), R),
     cg = await check(appendCase(good), R);
-  if (!cb.length || cg.length) throw new Error(`control failed: known-bad [${cb}] plain [${cg}]`);
+  if (!cb.length || cg.length) {
+    // The checks are inert, so nothing measured after this would mean anything. Exit 2, as for a harness error.
+    console.log(`control failed: known-bad [${cb}] plain [${cg}]`);
+    logEvent('error', 'control-not-fired', { seed: SEED, count: (cb.length ? 0 : 1) + (cg.length ? 1 : 0) });
+    process.exit(2);
+  }
   const r = rng(SEED);
   const bySig = new Map();
   let failed = 0;
@@ -412,6 +424,7 @@ async function main() {
     const min = await shrink(v.doc, sig, R);
     const { frames } = midstOf(min);
     console.log(`\nFAIL [${sig}]  ${v.count} case(s), first #${v.index}; minimal (${frames.length} frame(s)):`);
+    logEvent('error', 'case-fail', { seed: SEED, case: v.index, count: v.count });
     for (const f of frames) console.log(`  line ${f.lineNumber}  ${JSON.stringify(f.content)}`);
     if (EMIT) console.log(`  written ${emitFixture(min, `html-shape--fuzz-${sig.replace(/[^a-z]+/g, '-')}-${SEED}`)}`);
   }
@@ -423,11 +436,13 @@ async function main() {
   if (POS_KNOWN) {
     const got = ['edited line', 'another line', 'editor', 'none', 'throws'].map((k) => posStats.dist[k] || 0).join('/');
     posChanged = got !== POS_KNOWN;
+    if (posChanged) logEvent('error', 'scroll-changed', { seed: SEED });
     console.log(posChanged ? `SCROLL CHANGED: edited/another/editor/none/throws ${got}, known ${POS_KNOWN} (midst-editor #20; update --pos-known with the reason)` : `scroll edited/another/editor/none/throws ${got}, as known`);
   }
   process.exit(failed || posChanged ? 1 : 0);
 }
 main().catch((e) => {
-  console.error(e && e.message ? e.message : e);
+  // The message may quote a generated document; only our own control message is safe to print.
+  logEvent('error', 'harness-error', { class: classOf(e) });
   process.exit(2);
 });

@@ -18,10 +18,13 @@ const fs = require('fs'),
   path = require('path'),
   os = require('os');
 const { execFileSync } = require('child_process');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+const { logEvent, installUncaughtHandler, classOf } = require('./log.cjs');
+installUncaughtHandler();
 // The ACTUAL converter (built from midst-editor's util.ts by build:harness), replayed frame by frame:
 // the editor is shown what conversion produced, not a re-parse of the source.
-const { convertMidstFile } = require('../out/converter.cjs');
-const { openRenderer } = require('./render_page.cjs');
+// Both are required where they are used, so a usage error is reported without a built harness or a browser.
+const converter = () => require('../out/converter.cjs').convertMidstFile;
 const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
 
 function framesOf(zip) {
@@ -32,7 +35,7 @@ function framesOf(zip) {
     if (found.length !== 1) throw new Error(`expected 1 .midst entry, found ${found.length}`);
     const raw = fs.readFileSync(path.join(tmp, found[0]), 'utf8');
     const frames = JSON.parse(raw).editorTimelineFrames;
-    const { history } = JSON.parse(convertMidstFile(raw));
+    const { history } = JSON.parse(converter()(raw));
     let acc = '';
     const converted = history.map((c) => (acc = step(acc, c)));
     if (converted.length !== frames.length) throw new Error(`history ${converted.length} != frames ${frames.length}`);
@@ -45,7 +48,8 @@ function framesOf(zip) {
 async function main() {
   const dir = process.argv[2];
   if (!dir) {
-    console.error('usage: node conformance/render_lines.cjs <dir of .midst.zip>');
+    console.log('usage: node conformance/render_lines.cjs <dir of .midst.zip>');
+    logEvent('error', 'usage');
     process.exit(2);
   }
   const zips = [];
@@ -63,10 +67,11 @@ async function main() {
     return /^(synthetic|html-shape)--/.test(n) ? n : `#${String(i + 1).padStart(2, '0')}`;
   };
   if (zips.length === 0) {
-    console.error(`no .midst.zip files in ${dir}`);
+    console.log(`no .midst.zip files in ${dir}`);
+    logEvent('error', 'no-poems');
     process.exit(2);
   }
-  const r = await openRenderer();
+  const r = await require('./render_page.cjs').openRenderer();
 
   // KNOWN differences, a ratchet: --known FILE maps fixture name -> expected differing-frame count.
   // Any count that CHANGES fails, so a regression and a fix both demand an edit here, with a reason.
@@ -104,6 +109,6 @@ async function main() {
   process.exit((known ? unexpected : bad) ? 1 : 0);
 }
 main().catch((e) => {
-  console.error(e.constructor.name);
+  logEvent('error', 'harness-error', { class: classOf(e) });
   process.exit(2);
 });

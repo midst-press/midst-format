@@ -96,7 +96,44 @@ function noTextOnFailure() {
     // And nowhere on stdout or stderr except the one PASS line, which names its archive file.
     const rest = printed.replace(by.passes.line, '');
     for (const [kind, word] of Object.entries(MARK)) assert.ok(!has(rest, word), `the ${kind} marker reached stdout or stderr`);
-    assert.strictEqual(run.stderr, '', 'something was written to stderr');
+    // STDERR is the JSONL error log (midst-format #38): every line parses, and the events are exactly the rows that
+    // did not pass (as their printed lines say), then the summaries' own reasons. The marker search above has
+    // already covered stderr; the events below are checked against the printed lines, not against the log.
+    const logLines = run.stderr.split('\n');
+    assert.strictEqual(logLines.pop(), '', 'stderr does not end in a newline');
+    const events = logLines.map((l, i) => {
+      try {
+        return JSON.parse(l);
+      } catch {
+        return assert.fail(`stderr line ${i + 1} is not JSON`); // the line itself is not quoted: it is what must stay clean
+      }
+    });
+    const expected = [];
+    Object.keys(CASES).forEach((c, i) => {
+      const line = by[c].line;
+      const num = (re) => (re.test(line) ? { [re.source.split(':')[0]]: Number(line.match(re)[1]) } : {});
+      if (line.startsWith('ERR')) {
+        const word = (k) => (new RegExp(`${k}:(\\S+)`).test(line) ? { [k]: line.match(new RegExp(`${k}:(\\S+)`))[1] } : {});
+        const n = (k) => (new RegExp(`${k}:(\\d+)`).test(line) ? { [k]: Number(line.match(new RegExp(`${k}:(\\d+)`))[1]) } : {});
+        expected.push({ event: 'poem-error', index: i + 1, ...word('stage'), ...word('class'), ...word('code'), ...n('count'), ...n('exit') });
+      } else if (line.startsWith('FAIL')) {
+        expected.push({ event: 'poem-fail', index: i + 1, ...num(/firstBad:(\d+)/) });
+      }
+    });
+    // The summaries apply only to the run whose control did not fire (count 1) and to the empty run. The first
+    // two summaries (every row; the passing row alone) have nothing to add to the rows' own events.
+    const failingRows = expected.length;
+    assert.deepStrictEqual(
+      events.slice(0, failingRows).map(({ ts, level, script, ...rest }) => rest),
+      expected,
+      'the logged rows are not the failing rows',
+    );
+    assert.ok(events.every((e) => e.level === 'error' && e.script === 'no_text_child' && !Number.isNaN(Date.parse(e.ts))), 'level, script or ts');
+    assert.deepStrictEqual(
+      events.slice(failingRows).map(({ ts, level, script, ...rest }) => rest),
+      [{ event: 'control-not-fired', count: 1 }, { event: 'no-poems' }],
+      'summary events',
+    );
     return { failing: failing.length, markers: Object.keys(MARK).length };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

@@ -1,6 +1,11 @@
 const fs=require('fs'),path=require('path'),os=require('os');
 const {execFileSync}=require('child_process');
-const {convertMidstFile}=require('../out/converter.cjs');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report. An uncaught throw is
+// logged by class only and exits 2.
+const {logEvent,installUncaughtHandler}=require('./log.cjs');
+installUncaughtHandler();
+// Required where used, so a usage error is reported without a built harness.
+const convertMidstFile=(raw)=>require('../out/converter.cjs').convertMidstFile(raw);
 const {normalise}=require('./normalise.cjs');
 const step=(i,c)=>i.slice(0,c.front)+c.inserted+i.slice(i.length-c.end);
 
@@ -25,7 +30,7 @@ function check(zip){
 }
 
 const z=process.argv[2];
-if(!z){console.error('usage: node conformance/trajectory.cjs <poem.midst.zip | dir-of-zips>');process.exit(2);}
+if(!z){console.log('usage: node conformance/trajectory.cjs <poem.midst.zip | dir-of-zips>');logEvent('error','usage');process.exit(2);}
 const r=check(z);
 console.log(`${r.name}: frames ${r.nFrames}, history ${r.nHist}`);
 console.log(`  endpoint check (replay === text) : ${r.endpointOk}`);
