@@ -2,7 +2,9 @@
 // sides, so anything normalise() drops is absent from expectation and reality alike.
 const fs=require('fs'),path=require('path'),os=require('os');
 const {execFileSync}=require('child_process');
-// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report. A poem is named by its
+// index alone, never by its archive name (some are a poet's name and a title), and an error says only what
+// describeError allows, never its message (a JSON.parse message quotes its input) (midst-format #7, #41).
 const {logEvent,installUncaughtHandler}=require('./log.cjs');
 installUncaughtHandler();
 // Paths come from the environment. Poem data never lives in this repository.
@@ -24,6 +26,7 @@ const ctl=normalise('<p>a <s>struck</s> b</p>');
 console.log(`control  <s> through normalise -> ${JSON.stringify(ctl)}`);
 console.log(`control  's' reported lost     -> ${tags('<p>a <s>x</s> b</p>').has('s') && !tags(ctl).has('s')}\n`);
 for(const [i,zip] of zips.entries()){
+  const id=`#${String(i+1).padStart(2,'0')}`;
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'ml-'));
   let stage='extract';
   try{
@@ -44,12 +47,13 @@ for(const [i,zip] of zips.entries()){
     const lost=[...rawAll.keys()].filter(t=>!normAll.has(t)&&!normAll.has(RENAME[t]||t));
     checked++;
     if(lost.length){ poemsWithLoss++;
-      console.log(`LOSS ${path.basename(zip,'.midst.zip').slice(0,52).padEnd(52)} dropped tags: ${lost.map(t=>`${t}(x${rawAll.get(t)})`).join(' ')}`);
+      console.log(`LOSS ${id}  dropped tags: ${lost.map(t=>`${t}(x${rawAll.get(t)})`).join(' ')}`);
       for(const t of lost) lostTotal.set(t,(lostTotal.get(t)||0)+rawAll.get(t));
     }
   }catch(e){
-    console.log(`ERR  ${path.basename(zip,'.midst.zip')}  ${String(e.message).slice(0,90)}`);
-    logEvent('error','poem-error',{index:i+1,...describeError(e,stage)});
+    const d=describeError(e,stage);
+    console.log(`ERR  ${id}  stage:${d.stage} class:${d.class}${d.code?` code:${d.code}`:''}${'count' in d?` count:${d.count}`:''}${'exit' in d?` exit:${d.exit}`:''}`);
+    logEvent('error','poem-error',{index:i+1,...d});
   }
   finally{ fs.rmSync(tmp,{recursive:true,force:true}); }
 }
