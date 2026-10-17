@@ -125,4 +125,7 @@ a spurious failure on `december` until it was fixed this way.
 Note that `kb` and `kb-brookins` are two objects holding the **same poem** — a poet rename where both
 records survived.
 
-Fixture: `fixtures/synthetic/synthetic--inner-name-differs.midst.zip`.
+Fixtures: `fixtures/synthetic/synthetic--inner-name-differs.midst.zip`; and two whose entry names fail
+when passed back to unzip (midst-format #6): `synthetic--entry-name-nfd.midst.zip` (a decomposed accent,
+which `unzip -Z -1` prints as invalid UTF-8) and `synthetic--entry-name-bracketed.midst.zip` (`[draft]`, which
+unzip reads as a pattern). With the entry named on the command line, both extract nothing (exit 11).

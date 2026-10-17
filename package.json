@@ -7,13 +7,14 @@
   "scripts": {
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
-    "test": "jest",
+    "prepare": "node tools/install-hooks.cjs",
+    "test": "jest --coverage",
     "trajectory": "node conformance/trajectory.cjs",
     "conformance": "node conformance/verify_all.cjs",
     "conformance:coverage": "node conformance/coverage.cjs",
     "markloss": "node conformance/markloss.cjs",
     "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
-    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000 --pos-known 5087/1034/7960/3821/0",
+    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
     "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
   },
   "dependencies": {
