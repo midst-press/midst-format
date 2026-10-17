@@ -57,6 +57,7 @@ const CASES = [
   ['shapes_fuzz: bad --history', 'shapes_fuzz.cjs', ['--history', 'bogus'], () => ({}), ['usage'], 2, true],
   ['shapes_fuzz: --n 0', 'shapes_fuzz.cjs', ['--n', '0'], () => ({}), ['usage'], 2, true],
   ['shapes_fuzz: unknown --open class', 'shapes_fuzz.cjs', ['--open', 'nosuchclass'], () => ({}), ['usage'], 2, true],
+  ['shapes_fuzz: retired --pos-known', 'shapes_fuzz.cjs', ['--pos-known', '1/1/1/1/1'], () => ({}), ['usage'], 2, true],
   ['control_probe: no argument', 'control_probe.cjs', [], () => ({}), ['usage'], 2, true],
   ['trajectory: no argument', 'trajectory.cjs', [], () => ({}), ['usage'], 2, true],
   ['one: no argument', 'one.cjs', [], () => ({}), ['usage'], 2, true],
