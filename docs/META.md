@@ -38,9 +38,10 @@ conformance run checks it (below).
 show it, does not reject the file, and a writer writes it back unchanged. Dropping it would make an
 ordinary save delete a draft the poet made.
 
-⚠️ **`name`, `defaultName` and `title` are poem data under DATA.md**: never printed, logged
-or committed. A title can identify an unpublished poem, and a marker name is the poet's own words.
-Conformance tools compare them by hash.
+⚠️ **`name`, `defaultName` and `title` are poem data under DATA.md, and so is a format B file's
+`editorAuthor`, though format C no longer carries it**: never printed, logged or committed. A title
+can identify an unpublished poem, a marker name is the poet's own words, and `editorAuthor` is a
+poet's name. Conformance tools compare them by hash.
 
 ## Absent and unknown
 
