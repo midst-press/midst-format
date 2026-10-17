@@ -44,7 +44,7 @@ const META_FIELDS = {
   editorFontSize: 'fontSize',
   editorHighestEverDraftNumber: 'highestDraftNumber',
   editorTitle: 'title',
-  editorAuthor: 'author',
+  // No editorAuthor: a poem file carries no author (Stuart, 18 Oct, following Annelyse; midst-editor #181).
 };
 function expectedMeta(b = {}) {
   const m = {};

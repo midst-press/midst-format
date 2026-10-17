@@ -17,7 +17,8 @@ document adds them back as an optional `meta` object.
 | `draftMarkers`       | array, below   | `[]`          | `editorDraftMarkers`           | yes: named points on the timeline                   |
 | `highestDraftNumber` | integer >= 0   | `0`           | `editorHighestEverDraftNumber` | editor only: the next default name is `Draft <n+1>` |
 | `title`              | string         | absent        | `editorTitle`                  | no; carried so conversion loses nothing             |
-| `author`             | string         | absent        | `editorAuthor`                 | no; carried so conversion loses nothing             |
+
+**There is no `author`.** A poem file carries no author name by design: a writer is never made to attach a name, legal or pen, to their work (Annelyse, GitHub midst-editor #67; Stuart, 18 Oct, midst-editor #181). Conversion does not carry `editorAuthor` over, and an editor that finds `author` in a file drops it on save.
 
 **Values the editors produced.** `fontFamily`: `Bell`, `Courier`, `Garamond`, `Helvetica`, `Lato`,
 `Times New Roman` (the old editor's Font Family menu). `fontSize`: `10`, `12`, `14`, `24`, `36`. A
@@ -37,7 +38,7 @@ conformance run checks it (below).
 show it, does not reject the file, and a writer writes it back unchanged. Dropping it would make an
 ordinary save delete a draft the poet made.
 
-⚠️ **`name`, `defaultName`, `title` and `author` are poem data under DATA.md**: never printed, logged
+⚠️ **`name`, `defaultName` and `title` are poem data under DATA.md**: never printed, logged
 or committed. A title can identify an unpublished poem, and a marker name is the poet's own words.
 Conformance tools compare them by hash.
 
