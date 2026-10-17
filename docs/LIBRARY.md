@@ -36,8 +36,9 @@ The pure code only. Nothing that touches Electron, the store, the file system or
 | `@midst-press/midst-format/extensions` | `poemExtensions` (the StarterKit config)                                                                                                                                                            | `@tiptap/starter-kit` (peer)                                       |
 | `@midst-press/midst-format/convert`    | `convertMidstFile`, `getFileVersion`, `stripVersionInfo`, `includeVersionInfo`, `fileVersionMatchesCurrent`, `serializeDocument`, `metaFromOldMidst`, and the trailing-break and zero-width helpers | `history`, `extensions`, `@tiptap/html` and `@tiptap/core` (peers) |
 
-The entry points are separate so web can take `history` and `extensions` without pulling in
-`@tiptap/html`, which it does not depend on. TipTap is a peer dependency: each app keeps its own pinned
+The entry points are separate so web can take `extensions` without pulling in `@tiptap/html`, which it
+does not depend on. Web uses nothing from `history`: at web `2e80f0e`, the only importer of its
+`helpers.ts` copy is the copied test (clement-7074f29f). TipTap is a peer dependency: each app keeps its own pinned
 2.5.4, and nothing is bundled twice.
 
 What stays in the editor: `loadDataIntoWorkspace`, `resolveHtmlPath`, `writeConvertedFile` and the menu
@@ -51,6 +52,13 @@ web's copy check and are out of scope here.
 midst-format builds `dist/` from a tagged release: CommonJS, ES module and `.d.ts` for each entry point.
 Each app commits that build under `vendor/midst-format/` and depends on it as
 `"@midst-press/midst-format": "file:vendor/midst-format"`.
+
+**Each entry point is its own directory**, so a subpath resolves without `package.json` `exports`.
+`history/`, `extensions/` and `convert/` each hold a `package.json` naming `main` (CommonJS), `module` (ES)
+and `types`, beside those files. The top-level `exports` map is there as well, for resolvers that read it.
+This matters for web: TypeScript 4.6.3 with `moduleResolution: "node"` ignores `exports`, and so does
+Parcel 2.16.4 unless `packageExports` is turned on, which web does not do. Clement measured both: an
+`exports`-only subpath fails under web's `tsc` with TS2307, and the directory layout resolves.
 
 Why vendor rather than use a git dependency or a registry:
 
@@ -99,8 +107,9 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
    - **A verbatim check:** each moved function's text in `src/` equals the editor's at the named commit,
      imports aside. This is the only check on `step` and `reconstruct*`, which the conformance corpus never
      calls.
-   - **TypeScript 4.6 as a dev dependency** and a type check of `dist/*.d.ts` with it. Format has no
-     TypeScript today.
+   - **A TypeScript 4.6 consumer check.** TypeScript 4.6.3 becomes a dev dependency (format has no TypeScript
+     today). A small project with `moduleResolution: "node"` imports each subpath from `dist/` and must
+     type-check. A check of the `.d.ts` syntax alone could not see a subpath that does not resolve.
    - **A reproducible build:** building the same commit twice gives the same bytes. The apps' CI depends
      on this.
    - **Parity, on the synthetic corpus in CI:** the harness is built both ways, from `src/` and from the
@@ -119,11 +128,12 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 2. **Editor: vendor `v0.2.0` and import it.** Delete the moved code from `util.ts`, and delete
    `tracking/utils.ts` and `shared/poemExtensions.ts`. Pin `@tiptap/*` exactly in `package.json`. The Electron glue stays. Add the vendor hook. The existing unit and e2e
    tests are the parity check and run unchanged.
-3. **Web: vendor `v0.2.0` and import `history` and `extensions`.** `helpers.ts` is the editor's
-   `tracking/utils.ts` byte for byte, so the whole file is deleted, along with the inline extension config.
-   Remove `helpers.ts` and its test pairing (the `editor-*` copy of the tracking-utils test) from
-   `check-editor-helpers.mjs`, which still guards `follow.ts`, `buildLabel.ts` and the guide. Web's tests of
-   the player run unchanged against the import. Reviewer: Clement.
+3. **Web: vendor `v0.2.0` and import `extensions`**, in place of the inline StarterKit config in
+   `MidstPlayer.tsx`. `helpers.ts` and its copied test are dead code (nothing else imports them), so both
+   are deleted, and nothing switches to `history`. Remove `helpers.ts` from `check-editor-helpers.mjs` (with
+   its test pairing), from `jest.collectCoverageFrom` and from `coverageThreshold` in `package.json`. The
+   check still guards `follow.ts`, `buildLabel.ts` and the guide. Web's player tests run unchanged against
+   the import. Reviewer: Clement.
 4. **Format: remove the editor build path.** That is `MIDST_EDITOR_SRC`, the CI editor clone and
    `provenance.cjs`, which the stage 1 dual build makes safe to drop. Close editor #23.
 5. **Then the fixes**, #169, #15 and format #36, in the library as `v0.3.0`. Each app takes them by a
@@ -132,14 +142,14 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 
 ## Risks, and what catches each
 
-| Risk                                                                 | Caught by                                                                                                                          |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| The move changes `convert`, `compareStrings` or the extension config | the stage 1 dual build (synthetic in CI, the real archive locally); the editor's own tests in stage 2                              |
-| The move changes `step` or `reconstruct*`                            | the stage 1 verbatim check; the ported unit tests; the editor's Replay tests (stage 2) and web's player tests (stage 3), unchanged |
-| A vendored file is edited by hand                                    | the SHA-256 hook                                                                                                                   |
-| The vendored copy and its hashes are edited together                 | the CI job that rebuilds the tag and compares                                                                                      |
-| Web and editor resolve different `prosemirror-*` under TipTap 2.5.4  | not caught today, and already true: the same config can parse differently. Out of scope; noted for #9                              |
-| `.d.ts` syntax that TypeScript 4.6 cannot read                       | the TypeScript 4.6 check of `dist/` that stage 1 adds to format CI; web's `tsc` in stage 3                                         |
+| Risk                                                                            | Caught by                                                                                                                       |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| The move changes `convert`, `compareStrings` or the extension config            | the stage 1 dual build (synthetic in CI, the real archive locally); the editor's own tests in stage 2                           |
+| The move changes `step` or `reconstruct*`                                       | the stage 1 verbatim check; the ported unit tests; the editor's Replay tests (stage 2), unchanged                               |
+| A vendored file is edited by hand                                               | the SHA-256 hook                                                                                                                |
+| The vendored copy and its hashes are edited together                            | the CI job that rebuilds the tag and compares                                                                                   |
+| Web and editor resolve different `prosemirror-*` under TipTap 2.5.4             | not caught today, and already true: the same config can parse differently. Out of scope; noted for #9                           |
+| A subpath or `.d.ts` that web's TypeScript 4.6 or Parcel cannot resolve or read | the stage 1 TypeScript 4.6 consumer check (`moduleResolution: "node"`, each subpath imported); web's `tsc` and build in stage 3 |
 
 ## Decisions for Stuart
 
