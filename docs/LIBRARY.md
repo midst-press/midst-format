@@ -90,8 +90,11 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
    the editor's unit tests for that code, ported.
    - **Parity, on the synthetic corpus in CI:** the harness is built both ways, from `src/` and from the
      editor checkout, and must give identical output for every case.
-   - **Parity, on the real archive:** whoever holds it runs the same comparison locally, printing only ids,
-     counts and hashes per DATA.md.
+   - **Parity, on the real archive:** whoever holds it runs the same comparison locally. The two builds'
+     outputs are compared in-process, and each poem prints only its index and whether they agree, plus
+     totals. No hash is printed: a short frame's hash can be reversed by guessing (`no_text_cases.cjs`,
+     `short-frame`). An open change to the moved code, such as editor #196, is either merged before the
+     copy or ported into `src/` with it.
    - Tag `v0.2.0`.
 2. **Editor: vendor `v0.2.0` and import it.** Delete the moved code from `util.ts`, `tracking/utils.ts`
    and `shared/poemExtensions.ts`. The Electron glue stays. Add the vendor hook. The existing unit and e2e
