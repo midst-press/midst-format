@@ -14,7 +14,8 @@ const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'one-'));
 // through argv reliably -- that is what broke mónica-de-la-torre--december.
 execFileSync('unzip',['-q','-j','-o',zip,'-d',tmp],{stdio:'pipe'});
 const cands=fs.readdirSync(tmp).filter(n=>n.endsWith('.midst')&&!n.startsWith('._'));
-console.log('entries on disk after extract:',fs.readdirSync(tmp));
+// The count only: an entry name can be a poem's title (midst-format #7).
+console.log(`entries on disk after extract: ${fs.readdirSync(tmp).length}, .midst candidates: ${cands.length}`);
 if(cands.length!==1) throw new Error('candidates='+cands.length);
 const old=fs.readFileSync(path.join(tmp,cands[0]),'utf8');
 const frames=JSON.parse(old).editorTimelineFrames;
