@@ -56,7 +56,7 @@ Conformance tools compare them by hash.
   poet chose rather than leaving the reader to infer it.
 - **Players** (the editor's Replay and the website's): apply `fontFamily` and `fontSize` to the poem,
   and show `draftMarkers` on the timeline.
-- **Editor:** reads `meta` on open and writes it back on save, unknown keys included. Whether the new
+- **Editor:** reads `meta` on open and writes it back on save, unknown keys included, except `author`, which it drops (midst-editor #181). Whether the new
   editor lets a poet _change_ font or size, or add markers, is a product decision for Annelyse; this
   format supports either answer.
 
