@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.lib.json",
+  "compilerOptions": {
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "rootDir": "src",
+    "types": ["jest"],
+    "target": "es2021",
+    "lib": ["es2021"]
+  },
+  "include": ["src"]
+}
