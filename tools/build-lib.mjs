@@ -132,6 +132,9 @@ export async function buildLib(outDir) {
         version: rootPackage.version,
         private: true,
         peerDependencies,
+        // Only `convert` needs @tiptap/html. Optional, so an app that takes `history` and `extensions` (web)
+        // is not given it by npm, which installs every required peer (clement-7074f29f, review of #54).
+        peerDependenciesMeta: { "@tiptap/html": { optional: true } },
         exports: exportsMap,
       },
       null,

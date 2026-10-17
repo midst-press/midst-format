@@ -19,13 +19,14 @@ interface NewFrames {
 const CURRENT_VERSION = '1';
 const CURRENT_VERSION_LIST = ['1', 'v0.0.1'];
 
+// The header is exactly `midstVersion: <version>` on the first line, ending in \n or \r\n (#32): any other key
+// is not a Midst header, and a Windows line ending must not make a current file look old.
+// A leading byte order mark (older Windows editors add one when saving UTF-8) is allowed too (silas-397300f6).
+const VERSION_HEADER = /^\uFEFF?midstVersion: (\S+?)\r?$/;
 export const getFileVersion = (data: string) => {
-  try {
-    const rows = data.split('\n');
-    return rows[0].split(': ')[1];
-  } catch {
-    return '';
-  }
+  if (typeof data !== 'string') return '';
+  const m = VERSION_HEADER.exec(data.split('\n', 1)[0]);
+  return m ? m[1] : '';
 };
 
 export const stripVersionInfo = (data: string) => {

@@ -130,6 +130,10 @@ describe("the built library", () => {
       "@tiptap/html": rootPkg.dependencies["@tiptap/html"],
       "@tiptap/starter-kit": rootPkg.dependencies["@tiptap/starter-kit"],
     });
+    // Only @tiptap/html is optional: the other two are needed by `extensions`, which web takes.
+    expect(pkg.peerDependenciesMeta).toEqual({
+      "@tiptap/html": { optional: true },
+    });
     expect(Object.keys(pkg.exports)).toEqual([
       "./history",
       "./extensions",

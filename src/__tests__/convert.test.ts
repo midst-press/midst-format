@@ -19,6 +19,23 @@ describe('the version header', () => {
     expect(getFileVersion('midstVersion: v0.0.1\n{"text":""}')).toBe('v0.0.1');
   });
 
+  // #32: a file whose line endings were changed to Windows ones is still a current file.
+  it('reads a header that ends in CRLF', () => {
+    expect(getFileVersion('midstVersion: 1\r\n{"text":""}')).toBe('1');
+    expect(fileVersionMatchesCurrent('midstVersion: 1\r\n{}')).toBe(true);
+    expect(stripVersionInfo('midstVersion: 1\r\n{"text":""}')).toBe(
+      '{"text":""}'
+    );
+  });
+
+  // An older Windows editor saves UTF-8 with a byte order mark (silas-397300f6, review of #196).
+  it('reads a header after a UTF-8 byte order mark, with CRLF too', () => {
+    const file = '\uFEFFmidstVersion: 1\r\n{"text":""}';
+    expect(getFileVersion(file)).toBe('1');
+    expect(fileVersionMatchesCurrent(file)).toBe(true);
+    expect(stripVersionInfo(file)).toBe('{"text":""}');
+  });
+
   it('accepts both versions the editor has written, and no other', () => {
     expect(fileVersionMatchesCurrent('midstVersion: 1\n{}')).toBe(true);
     expect(fileVersionMatchesCurrent('midstVersion: v0.0.1\n{}')).toBe(true);
@@ -33,6 +50,10 @@ describe('the version header', () => {
     ['a header with no space after the colon', 'midstVersion:1\n{}'],
     ['a version on the second line', '{}\nmidstVersion: 1'],
     ['text that merely contains a colon', '{"content":"<p>zq: 1</p>"}'],
+    // #32: the header's name is checked, not just whatever follows the first ': '.
+    ['another key with a current value', 'title: 1\n{}'],
+    ['the header name inside a longer key', 'xmidstVersion: 1\n{}'],
+    ['a current value followed by more', 'midstVersion: 1 zq\n{}'],
   ])('does not take %s for a current file', (_name, data) => {
     expect(fileVersionMatchesCurrent(data)).toBe(false);
   });
