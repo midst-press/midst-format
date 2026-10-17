@@ -14,7 +14,7 @@
     "conformance:coverage": "node conformance/coverage.cjs",
     "markloss": "node conformance/markloss.cjs",
     "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
-    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000 --pos-known 5081/1134/7798/3747/0",
+    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
     "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
   },
   "dependencies": {
