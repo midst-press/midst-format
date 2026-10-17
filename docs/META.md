@@ -17,7 +17,8 @@ document adds them back as an optional `meta` object.
 | `draftMarkers`       | array, below   | `[]`          | `editorDraftMarkers`           | yes: named points on the timeline                   |
 | `highestDraftNumber` | integer >= 0   | `0`           | `editorHighestEverDraftNumber` | editor only: the next default name is `Draft <n+1>` |
 | `title`              | string         | absent        | `editorTitle`                  | no; carried so conversion loses nothing             |
-| `author`             | string         | absent        | `editorAuthor`                 | no; carried so conversion loses nothing             |
+
+**There is no `author`.** A poem file carries no author name by design: a writer is never made to attach a name, legal or pen, to their work (Annelyse, GitHub midst-editor #67; Stuart, 18 Oct, midst-editor #181). Conversion does not carry `editorAuthor` over, and an editor that finds `author` in a file drops it on save.
 
 **Values the editors produced.** `fontFamily`: `Bell`, `Courier`, `Garamond`, `Helvetica`, `Lato`,
 `Times New Roman` (the old editor's Font Family menu). `fontSize`: `10`, `12`, `14`, `24`, `36`. A
@@ -37,9 +38,10 @@ conformance run checks it (below).
 show it, does not reject the file, and a writer writes it back unchanged. Dropping it would make an
 ordinary save delete a draft the poet made.
 
-⚠️ **`name`, `defaultName`, `title` and `author` are poem data under DATA.md**: never printed, logged
-or committed. A title can identify an unpublished poem, and a marker name is the poet's own words.
-Conformance tools compare them by hash.
+⚠️ **`name`, `defaultName` and `title` are poem data under DATA.md, and so is a format B file's
+`editorAuthor`, though format C no longer carries it**: never printed, logged or committed. A title
+can identify an unpublished poem, a marker name is the poet's own words, and `editorAuthor` is a
+poet's name. Conformance tools compare them by hash.
 
 ## Absent and unknown
 
@@ -55,7 +57,7 @@ Conformance tools compare them by hash.
   poet chose rather than leaving the reader to infer it.
 - **Players** (the editor's Replay and the website's): apply `fontFamily` and `fontSize` to the poem,
   and show `draftMarkers` on the timeline.
-- **Editor:** reads `meta` on open and writes it back on save, unknown keys included. Whether the new
+- **Editor:** reads `meta` on open and writes it back on save, unknown keys included, except `author`, which it drops (midst-editor #181). Whether the new
   editor lets a poet _change_ font or size, or add markers, is a product decision for Annelyse; this
   format supports either answer.
 
