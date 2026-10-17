@@ -15,7 +15,12 @@
     "markloss": "node conformance/markloss.cjs",
     "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
     "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
-    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
+    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls",
+    "build:lib": "node tools/build-lib.mjs",
+    "verbatim": "node tools/verbatim.mjs",
+    "parity": "node conformance/parity.cjs",
+    "consumer-ts46": "node tools/consumer-ts46.cjs",
+    "reproducible": "node tools/reproducible.mjs"
   },
   "dependencies": {
     "@tiptap/core": "2.5.4",
@@ -25,11 +30,15 @@
     "node-html-parser": "6.1.13"
   },
   "devDependencies": {
+    "@types/jest": "30.0.0",
     "c8": "12.0.0",
     "esbuild": "0.28.2",
     "jest": "30.5.2",
     "playwright": "1.64.0",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "ts-jest": "29.4.14",
+    "typescript": "5.5.3",
+    "typescript-4.6": "npm:typescript@4.6.3"
   },
   "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have.",
   "overrides": {

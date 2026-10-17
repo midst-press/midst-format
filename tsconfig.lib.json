@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2019",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "src",
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@tiptap/core": [
+        "node_modules/@tiptap/starter-kit/node_modules/@tiptap/core"
+      ]
+    }
+  },
+  "include": ["src/history.ts", "src/extensions.ts", "src/convert.ts"]
+}

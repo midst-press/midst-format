@@ -1,0 +1,9 @@
+{
+  "editorCommit": "d9894626c5514a6a43f2acb04ef54d7ee51acb73",
+  "files": {
+    "src/history.ts": "src/renderer/tracking/utils.ts",
+    "src/extensions.ts": "src/shared/poemExtensions.ts",
+    "src/convert.ts": "src/main/util.ts"
+  },
+  "excludedFromConvert": ["resolveHtmlPath", "loadDataIntoWorkspace"]
+}

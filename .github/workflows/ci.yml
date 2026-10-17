@@ -41,6 +41,8 @@ jobs:
         with:
           repository: midst-press/midst-editor
           path: midst-editor
+          # The whole history: tools/verbatim.mjs reads the editor at the commit src/MOVED_FROM.json pins.
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: midst-format/.nvmrc
@@ -58,6 +60,23 @@ jobs:
         env:
           MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
         run: npm run build:harness
+      - name: build the library from src/
+        working-directory: midst-format
+        run: npm run build:lib
+      - name: the moved code is the editor's, statement by statement (pinned commit)
+        working-directory: midst-format
+        env:
+          MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
+        run: npm run verbatim
+      - name: parity, library against the editor build, synthetic corpus
+        working-directory: midst-format
+        run: MIDST_CORPUS=fixtures/synthetic npm run parity
+      - name: the library type-checks for TypeScript 4.6 consumers
+        working-directory: midst-format
+        run: npm run consumer-ts46
+      - name: the library build is reproducible
+        working-directory: midst-format
+        run: npm run reproducible
       - name: self-tests (Jest) - the text oracle, and a failing poem leaves no text in any output
         working-directory: midst-format
         run: npm test
