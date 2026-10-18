@@ -77,7 +77,7 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/editor_key"
           printf '%s\n' '[gitea-server]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/VGpxJRKcHAJCSqYHQ+NZNS7v2pibbUelMYqemnO8DOoAU6fngzVz49QPLvYQXy3Rc1W57+cf1MOrzYVJC3unsyIiMGycgQdKBqHAc8+rmBPvGvS+0U28T2F8idZlzfLIa8kt6K7dUkw2l65h5mHxAQ8YHyLv9kgNRVYMzjZmmX4Y1mYdJegyP8IAZUVgKewzw6FVNnJrN0/iomQSfhwYBIoPN4w9cUrKLuIteZX0Rs1FEZbSMy9GxyiH0fRn0X9P/0QO973UwaxlkSEKZY31+Geex1ynCEuulwQGkhhGhmnnaTCTlS9hwHpJ+pcrb0OnVdJj8cxeq1WLyVnZMEtHbu5+LX8ViicW8exEf9VAcJUExgn+itJXU5NceNcZLotDScJXGV1UI/de5TgjuB3WyFQphYdeiuKxwRywtV8fEFzzZRl+t1gSDvDjSU3/DJM4gZm5lARUnClUOW6uRGx6wuryhBeYoJroBzlnHZp+yOlWYdTwrcZG5+wk60R6ETjqOq/zysAg2fZTA2obvTmYlOojYf+nfvIPT0I0FZNPDaY1qqtR8pgJwZX61yHtDEiqHyje+NQUeIvAt+vm7wQ6coYSlle+5zzWuDZzgo15KkXqAZCdgv8al+WRSZKTdGnNer5cB0uZSBSDr9dg95WLX0o+rUYTX9g0ocmcrOpP0Q==' > "$RUNNER_TEMP/known_hosts"
           export GIT_SSH_COMMAND="ssh -F /dev/null -p 2222 -i $RUNNER_TEMP/editor_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
-          git clone --quiet --depth 1 stuartswerdloff@gitea-server:The_Kindled/midst-editor.git midst-editor
+          git clone --quiet stuartswerdloff@gitea-server:The_Kindled/midst-editor.git midst-editor
       # Fail loudly rather than fall back to what macOS ships (bash 3.2, Python 3.9). The runner
       # account's own PATH is not ours to rely on, so this job puts Homebrew first itself and then
       # checks that it took.
@@ -95,6 +95,23 @@ jobs:
         env:
           MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
         run: npm run build:harness
+      - name: build the library from src/
+        working-directory: midst-format
+        run: npm run build:lib
+      - name: the moved code is the editor's, statement by statement (pinned commit)
+        working-directory: midst-format
+        env:
+          MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
+        run: npm run verbatim
+      - name: parity, library against the editor build, synthetic corpus
+        working-directory: midst-format
+        run: MIDST_CORPUS=fixtures/synthetic npm run parity
+      - name: the library type-checks for TypeScript 4.6 consumers
+        working-directory: midst-format
+        run: npm run consumer-ts46
+      - name: the library build is reproducible
+        working-directory: midst-format
+        run: npm run reproducible
       - name: self-tests (Jest) - the text oracle, and a failing poem leaves no text in any output
         working-directory: midst-format
         run: npm test
