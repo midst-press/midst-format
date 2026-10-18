@@ -64,8 +64,8 @@ Why vendor rather than use a git dependency or a registry:
 
 - **It is the same bytes on both forges.** A git dependency names a URL, either Gitea's or GitHub's, so
   the two mirrors' `package.json` and lockfile would differ, or one forge's CI would need to reach the other.
-  midst-format is private on Gitea and public on GitHub. A vendored directory makes `npm ci` need nothing
-  but the repo.
+  A vendored directory makes `npm ci` need nothing but the repo. (An earlier version of this note said
+  midst-format is private on Gitea. It is public there, as on GitHub: checked anonymously, 19 Oct.)
 - **No registry and no push-up** are needed to take a new version.
 - **No compiler coupling.** The apps consume built JavaScript and declarations, not TypeScript source, so
   web's TypeScript 4.6 never compiles code written for the editor's 5.5. The declarations are kept to
@@ -79,8 +79,8 @@ checks, because the hashes alone can be edited in the same commit as the files:
   vendored file fails.
 - **A CI job in each app rebuilds the tag and compares.** It clones midst-format at the tag in VENDOR.md,
   checks that the tag's commit is the one recorded, builds, and byte-compares `dist/` with
-  `vendor/midst-format/`. On Gitea the clone uses a read-only deploy key, as format CI already does for the
-  editor. On GitHub, midst-format is public. This depends on a tag, which does not move, and not on
+  `vendor/midst-format/`. midst-format is public on both forges, so the clone needs no key: on Gitea it is
+  anonymous over `http://gitea-server:3000` (editor #203), and on GitHub it waits until the tag is pushed up. This depends on a tag, which does not move, and not on
   format `main`. Locally the same check runs with `MIDST_FORMAT_ROOT` set, as web's editor-helpers check
   does with `MIDST_EDITOR_ROOT`.
 
