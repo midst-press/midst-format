@@ -1,6 +1,6 @@
-// Parity (midst-format #50, docs/LIBRARY.md): the library's convertMidstFile (dist/convert/index.cjs, built from
-// src/) must give the same output as the editor's (out/converter.cjs, built from the editor checkout by
-// build:harness), for every input verify_all.cjs reads.
+// Parity (midst-format #50, docs/LIBRARY.md): two builds of the library's src/ must give the same
+// convertMidstFile output, for every input verify_all.cjs reads: dist/convert/index.cjs (build:lib, what the
+// apps vendor) and out/converter.cjs (build:harness, what the conformance checks run).
 //
 //   MIDST_CORPUS=<dir of .midst.zip> node conformance/parity.cjs
 //
@@ -91,10 +91,10 @@ function main() {
     );
     return 2;
   }
-  const editorPath = path.join(__dirname, "..", "out", "converter.cjs");
+  const harnessPath = path.join(__dirname, "..", "out", "converter.cjs");
   const libPath = path.join(__dirname, "..", "dist", "convert", "index.cjs");
   for (const [what, p, how] of [
-    ["editor build", editorPath, "npm run build:harness"],
+    ["harness build", harnessPath, "npm run build:harness"],
     ["library build", libPath, "npm run build:lib"],
   ]) {
     if (!fs.existsSync(p)) {
@@ -105,7 +105,7 @@ function main() {
     }
   }
   const results = runParity(findZips(corpus), {
-    editorConvert: require(editorPath).convertMidstFile,
+    editorConvert: require(harnessPath).convertMidstFile,
     libConvert: require(libPath).convertMidstFile,
     normalise: require("./normalise.cjs").normalise,
   });

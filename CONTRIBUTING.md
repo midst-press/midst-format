@@ -1,6 +1,7 @@
 # Contributing to midst-format
 
-This repository describes the Midst file formats and checks the editor's converter against them: the
+This repository describes the Midst file formats and holds the shared format library (`src/`, which the
+editor and the website vendor), and checks the library's converter against the formats: the
 conformance suite replays every frame of a poem and compares the result. The README explains why it is
 built that way; please read it before changing the suite.
 
@@ -49,7 +50,7 @@ pre-commit run --all-files    # the same checks CI runs, including conformance o
 npm test                      # self-tests (Jest); no harness needed
 ```
 
-Rebuild the harness whenever the editor's converter changes.
+Rebuild the harness whenever `src/convert.ts` changes.
 
 - A change to what the suite accepts as conformant needs a synthetic case that shows the difference.
 - `docs/KNOWN-DEVIATIONS.md` records where the converter is known to differ, and why. Update it when that
