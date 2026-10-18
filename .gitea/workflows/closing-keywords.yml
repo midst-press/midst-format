@@ -14,7 +14,8 @@ on:
     types: [opened, synchronize, reopened, edited]
 concurrency:
   group: closing-keywords-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel a superseded run on a PR only: every push to main keeps its own verdict (midst-infra #102).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 defaults:
