@@ -22,7 +22,7 @@ How the copies are held together today:
 - Format CI clones editor `main` to build the converter it tests. So a format PR can go red because of an
   editor PR, as format #48 did with editor #185.
 
-Every repo's lockfile resolves `@tiptap/*` to 2.5.4. Web and format pin it exactly in `package.json`, while
+Every repo's lockfile resolves `@tiptap/*` to 2.5.4. Format's did so only from #53: until then, StarterKit's extensions, core and pm were nested in it at 2.27.3 (#52). Format holds it with `overrides` and `tools/one_tiptap.cjs`. Web and format pin it exactly in `package.json`, while
 the editor declares `^2.5.4`, which stage 2 pins. `prosemirror-*` differs between the editor (model 1.22.2) and web and
 format (model 1.25.12), and so does TypeScript (editor 5.5.3, web 4.6.3).
 
