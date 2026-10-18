@@ -10,34 +10,35 @@ const DIR = __dirname;
 let empty;
 let notZip;
 let tmp;
-// Stand-in midst-editor trees for provenance.cjs: util.ts with the trailing-<br> rule, and the schema file beside
-// it, built from the harness's own normalise.cjs so the 'same' tree matches it exactly.
-const editorTree = (name, schema, zeroWidth = (u) => u) => {
+// Stand-in source directories for provenance.cjs --src: extensions.ts with the schema block, and convert.ts with the
+// trailing-<br> rule and the zero-width declarations, built from the harness's own normalise.cjs so the 'same'
+// directory matches it exactly.
+const srcTree = (name, schema, zeroWidth = (u) => u) => {
   const root = path.join(tmp, name, 'src');
-  fs.mkdirSync(path.join(root, 'main'), { recursive: true });
-  fs.mkdirSync(path.join(root, 'shared'));
+  fs.mkdirSync(root, { recursive: true });
   const mine = fs.readFileSync(path.join(DIR, 'normalise.cjs'), 'utf8');
   const rule = mine.match(/const TRAILING_BREAK = .*;/)[0];
   // The zero-width declarations, from ZERO_WIDTH_CHARS to the end of ZERO_WIDTH_ONLY_ELEMENT.
   const from = mine.indexOf('const ZERO_WIDTH_CHARS =');
   const to = mine.indexOf(');\n', mine.indexOf('const ZERO_WIDTH_ONLY_ELEMENT =')) + 3;
-  fs.writeFileSync(path.join(root, 'main', 'util.ts'), zeroWidth(`${rule}\n${mine.slice(from, to)}`));
-  fs.writeFileSync(path.join(root, 'shared', 'poemExtensions.ts'), schema(mine.slice(mine.indexOf('const extensions = ['), mine.indexOf('];', mine.indexOf('const extensions = [')) + 2)));
-  return path.join(root, 'main', 'util.ts');
+  fs.writeFileSync(path.join(root, 'convert.ts'), zeroWidth(`${rule}\n${mine.slice(from, to)}`));
+  fs.writeFileSync(path.join(root, 'extensions.ts'), schema(mine.slice(mine.indexOf('const extensions = ['), mine.indexOf('];', mine.indexOf('const extensions = [')) + 2)));
+  return root;
 };
 const same = (block) => block.replace('const extensions = [', 'const poemExtensions = [');
-let utilSame, utilFlipped, utilNoBlock, utilZeroWidth;
+let srcSame, srcFlipped, srcNoBlock, srcZeroWidth, srcMissing;
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-entry-'));
   empty = path.join(tmp, 'empty');
   fs.mkdirSync(empty);
   notZip = path.join(tmp, 'not-a-zip.midst.zip');
   fs.writeFileSync(notZip, 'this is not a zip archive');
-  utilSame = editorTree('same', same);
-  utilFlipped = editorTree('flipped', (b) => same(b).replace('strike: false', 'strike: true'));
-  utilNoBlock = editorTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
-  // The editor's zero-width set without U+2060: the harness would no longer mirror the converter.
-  utilZeroWidth = editorTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));
+  srcSame = srcTree('same', same);
+  srcFlipped = srcTree('flipped', (b) => same(b).replace('strike: false', 'strike: true'));
+  srcNoBlock = srcTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
+  // The zero-width set without U+2060: the harness would no longer mirror the converter.
+  srcZeroWidth = srcTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));
+  srcMissing = path.join(tmp, 'no-such-src');
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
@@ -61,13 +62,15 @@ const CASES = [
   ['control_probe: no argument', 'control_probe.cjs', [], () => ({}), ['usage'], 2, true],
   ['trajectory: no argument', 'trajectory.cjs', [], () => ({}), ['usage'], 2, true],
   ['one: no argument', 'one.cjs', [], () => ({}), ['usage'], 2, true],
-  ['build: no editor source', 'build.mjs', [], () => ({}), ['build-env-not-set'], 2, true],
   ['one: not a zip', 'one.cjs', [() => notZip], () => ({ MIDST_OUT: tmp }), ['harness-error'], 2, true],
-  ['provenance: no util.ts', 'provenance.cjs', [], () => ({}), ['usage'], 2, true],
-  ['provenance: control, the same schema', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilSame }), [], 0, true],
-  ['provenance: an option flipped', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilFlipped }), ['provenance-mismatch'], 1, true],
-  ['provenance: no schema block', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilNoBlock }), ['provenance-mismatch'], 1, true],
-  ['provenance: the zero-width rule differs', 'provenance.cjs', [], () => ({ MIDST_EDITOR_UTIL_TS: utilZeroWidth }), ['provenance-mismatch'], 1, true],
+  ['provenance: unknown argument', 'provenance.cjs', ['--bogus'], () => ({}), ['usage'], 2, true],
+  ['provenance: --src without a directory', 'provenance.cjs', ['--src'], () => ({}), ['usage'], 2, true],
+  ['provenance: control, the repository itself', 'provenance.cjs', [], () => ({}), [], 0, true],
+  ['provenance: control, the same schema', 'provenance.cjs', ['--src', () => srcSame], () => ({}), [], 0, true],
+  ['provenance: an option flipped', 'provenance.cjs', ['--src', () => srcFlipped], () => ({}), ['provenance-mismatch'], 1, true],
+  ['provenance: no schema block', 'provenance.cjs', ['--src', () => srcNoBlock], () => ({}), ['provenance-mismatch'], 1, true],
+  ['provenance: the zero-width rule differs', 'provenance.cjs', ['--src', () => srcZeroWidth], () => ({}), ['provenance-mismatch'], 1, true],
+  ['provenance: a source directory that does not exist', 'provenance.cjs', ['--src', () => srcMissing], () => ({}), ['harness-error'], 2, false],
 ];
 
 describe('entry points fail loudly as JSONL on stderr', () => {
@@ -100,11 +103,11 @@ describe('entry points fail loudly as JSONL on stderr', () => {
 
 // Which disagreement provenance names matters as much as that it names one.
 test.each([
-  ['an option flipped', () => utilFlipped, { stage: 'options', count: 2 }],
-  ['no schema block', () => utilNoBlock, { stage: 'block-not-found' }],
-  ['the zero-width rule differs', () => utilZeroWidth, { stage: 'zero-width' }],
-])('provenance: %s is logged with its stage', (_name, util, fields) => {
-  const r = run('provenance.cjs', [], { MIDST_EDITOR_UTIL_TS: util() });
+  ['an option flipped', () => srcFlipped, { stage: 'options', count: 2 }],
+  ['no schema block', () => srcNoBlock, { stage: 'block-not-found' }],
+  ['the zero-width rule differs', () => srcZeroWidth, { stage: 'zero-width' }],
+])('provenance: %s is logged with its stage', (_name, dir, fields) => {
+  const r = run('provenance.cjs', ['--src', dir()], {});
   const [rec] = r.stderr.trim().split('\n').map((l) => JSON.parse(l));
   const { ts, level, script, event, ...rest } = rec;
   expect(rest).toEqual(fields);

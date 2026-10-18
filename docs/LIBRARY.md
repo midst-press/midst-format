@@ -91,9 +91,9 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 ## CI after the move
 
 - **Format CI tests its own source.** The conformance harness imports `src/` instead of building from an
-  editor checkout. `MIDST_EDITOR_SRC`, the editor clone in `ci.yml`, `conformance/provenance.cjs` and the
-  transcriptions in `normalise.cjs` and `render_editor_entry.mjs` are removed (stage 4). A format PR no
-  longer depends on editor `main`.
+  editor checkout. `MIDST_EDITOR_SRC` and the editor clone in `ci.yml` are removed (stage 4).
+  `conformance/provenance.cjs` stays, and holds the transcriptions in `normalise.cjs` to `src/` instead of
+  the editor: replacing them with imports is left for later. A format PR no longer depends on editor `main`.
 - **App CI tests the vendored copy it ships**, through the app's own tests. They import the library now
   instead of the moved code.
 - **The order is one way:** format, then tag, then a vendoring PR in each app.
@@ -136,6 +136,9 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
    the import. Reviewer: Clement.
 4. **Format: remove the editor build path.** That is `MIDST_EDITOR_SRC`, the CI editor clone and
    `provenance.cjs`, which the stage 1 dual build makes safe to drop. Close editor #23.
+   **Done.** The harness builds from `src/convert.ts` and format CI no longer clones the editor or runs
+   `verbatim`. `provenance.cjs` stays, now comparing `normalise.cjs` with `src/extensions.ts` and
+   `src/convert.ts`. `src/MOVED_FROM.json` remains as the record of where the code came from.
 5. **Then the fixes**, #169, #15 and format #36, in the library as `v0.3.0`. Each app takes them by a
    vendoring PR, and then there is one reconversion. The reconversion, the release and the deploy are
    Stuart's and Violet's.

@@ -1,19 +1,19 @@
-// How much of midst-editor's converter (src/main/util.ts) do the conformance runs execute?
+// How much of the library's converter (src/convert.ts) do the conformance runs execute?
 //
 //   node conformance/coverage.cjs [corpus dir]        default: fixtures/synthetic
 //
 // Runs verify_all.cjs under c8 (V8 coverage) against out/converter.cjs, which build:harness bundles from
-// util.ts with a source map, and reports against util.ts. PRINTS NUMBERS AND CODE IDENTIFIERS ONLY:
+// convert.ts with a source map, and reports against convert.ts. PRINTS NUMBERS AND CODE IDENTIFIERS ONLY:
 // verify_all's own output is discarded (on the real archive it names poems), and coverage data holds
 // positions and counts, never content. Safe to run on the real corpus; nothing it writes holds poem text.
 //
-// ONE TRAP, MEASURED: c8 reports util.ts line by line, and counts every line that is NOT in the bundle as
-// covered. esbuild drops the exports the converter does not use (the open/save half of util.ts), so the
+// ONE TRAP, MEASURED: c8 reports convert.ts line by line, and counts every line that is NOT in the bundle as
+// covered. esbuild drops the exports the converter does not use, so the
 // raw figure credits code that never ran. This script takes the bundled lines from the source map and
 // reports those; lines outside the bundle are reported as NOT covered, because conformance never runs them.
 //
 // Writes coverage/converter-istanbul.json (istanbul format, corrected the same way) for a merged report, and
-// coverage/converter-util.sha256, the hash of the util.ts it measured.
+// coverage/converter-util.sha256, the hash of the convert.ts it measured.
 // Exit: 0, or 1 when a control fails, or 2 on a usage or harness error.
 const fs = require('fs'),
   os = require('os'),
@@ -58,7 +58,7 @@ function mappedLines(map, sourceIndex) {
   return lines;
 }
 
-// Run verify_all under c8 over `corpus`; return util.ts's entry from the istanbul JSON.
+// Run verify_all under c8 over `corpus`; return convert.ts's entry from the istanbul JSON.
 function run(corpus) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-cov-'));
   try {
@@ -69,7 +69,7 @@ function run(corpus) {
         '--allowExternal',
         '--exclude-after-remap',
         '--include',
-        '**/src/main/util.ts',
+        '**/src/convert.ts',
         '--reporter=json',
         `--reports-dir=${path.join(tmp, 'report')}`,
         `--temp-directory=${path.join(tmp, 'v8')}`,
@@ -81,15 +81,15 @@ function run(corpus) {
     const file = path.join(tmp, 'report', 'coverage-final.json');
     if (!fs.existsSync(file)) throw new Error(`c8 wrote no report (exit ${r.status})`);
     const all = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const key = Object.keys(all).find((k) => k.endsWith(path.join('src', 'main', 'util.ts')));
-    if (!key) throw new Error('util.ts is not in the coverage report');
+    const key = Object.keys(all).find((k) => k.endsWith(path.join('src', 'convert.ts')));
+    if (!key) throw new Error('convert.ts is not in the coverage report');
     return { entry: all[key], verifyExit: r.status };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true }); // the conversions are poems: never left behind
   }
 }
 
-// Sort util.ts's lines. c8 gives one "statement" per source LINE, blank lines and comments included, so
+// Sort convert.ts's lines. c8 gives one "statement" per source LINE, blank lines and comments included, so
 // the lines have to be told apart before anything is counted:
 //   mapped     has a source-map mapping: code that is in the bundle. The only lines whose hits mean anything.
 //   outside    code in a top-level declaration NONE of whose lines is mapped: dropped by the bundler, never run.
@@ -140,8 +140,8 @@ function main() {
   const corpus = path.resolve(process.argv[2] || path.join(ROOT, 'fixtures', 'synthetic'));
   if (!fs.existsSync(BUNDLE_MAP)) throw new Error('out/converter.cjs.map is missing: run build:harness first');
   const map = JSON.parse(fs.readFileSync(BUNDLE_MAP, 'utf8'));
-  const si = map.sources.findIndex((s) => s.endsWith(path.join('src', 'main', 'util.ts')));
-  if (si < 0) throw new Error('util.ts is not a source of the bundle');
+  const si = map.sources.findIndex((s) => s.endsWith(path.join('src', 'convert.ts')));
+  if (si < 0) throw new Error('convert.ts is not a source of the bundle');
   const bundled = mappedLines(map, si);
 
   const { entry, verifyExit } = run(corpus);
@@ -159,10 +159,10 @@ function main() {
   const pct = (a, b) => (b ? ((100 * a) / b).toFixed(1) : 'n/a');
 
   console.log(`corpus: ${path.relative(ROOT, corpus) || corpus}   verify_all exit ${verifyExit}`);
-  console.log(`util.ts, the part bundled into the converter: lines ${covered} of ${hits.size} (${pct(covered, hits.size)}%)`);
+  console.log(`convert.ts, the part bundled into the converter: lines ${covered} of ${hits.size} (${pct(covered, hits.size)}%)`);
   console.log(`  branches ${br.filter((n) => n > 0).length} of ${br.length} (${pct(br.filter((n) => n > 0).length, br.length)}%)   functions ${fns.filter(([, n]) => n > 0).length} of ${fns.length}`);
   console.log(`  uncovered lines: ${uncovered.join(', ') || 'none'}`);
-  console.log(`util.ts as a whole: code lines ${covered} of ${codeLines} (${pct(covered, codeLines)}%); ${outside.length} lines of code are not in the bundle and never run here`);
+  console.log(`convert.ts as a whole: code lines ${covered} of ${codeLines} (${pct(covered, codeLines)}%); ${outside.length} lines of code are not in the bundle and never run here`);
   console.log(`  exports not in the bundle: ${exported.filter((n) => !inBundle.has(n)).join(', ') || 'none'}`);
 
   // The istanbul JSON. c8 had every unmapped line as covered. Here a line of code outside the bundle is 0
@@ -182,12 +182,12 @@ function main() {
   const outFile = path.join(ROOT, 'coverage', 'converter-istanbul.json');
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify({ [fixed.path]: fixed }));
-  // The sha256 of the util.ts that was MEASURED: the text esbuild bundled (the source map's sourcesContent),
-  // not the file on disk now, which may have changed since build:harness (clement-7074f29f). midst-editor's
-  // merge compares it with its own util.ts and leaves this layer out on a mismatch.
-  if (!map.sourcesContent || typeof map.sourcesContent[si] !== 'string') throw new Error('the bundle source map has no sourcesContent for util.ts');
+  // The sha256 of the convert.ts that was MEASURED: the text esbuild bundled (the source map's sourcesContent),
+  // not the file on disk now, which may have changed since build:harness (clement-7074f29f). a consumer's
+  // merge compares it with its own convert.ts and leaves this layer out on a mismatch.
+  if (!map.sourcesContent || typeof map.sourcesContent[si] !== 'string') throw new Error('the bundle source map has no sourcesContent for convert.ts');
   const utilSha = crypto.createHash('sha256').update(map.sourcesContent[si], 'utf8').digest('hex');
-  fs.writeFileSync(path.join(path.dirname(outFile), 'converter-util.sha256'), `${utilSha}  src/main/util.ts\n`);
+  fs.writeFileSync(path.join(path.dirname(outFile), 'converter-util.sha256'), `${utilSha}  src/convert.ts\n`);
   console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out)`);
 
   // CONTROLS, on the synthetic corpus: the instrument must be able to say "not covered".
@@ -197,7 +197,7 @@ function main() {
   //      line of code outside the bundle (else the trap this script exists for is absent, and it refuses),
   //      and in the written JSON EVERY such line must have 0 hits.
   const marker = source.split('\n').findIndex((l) => /index:\s*timelineIndex/.test(l)) + 1;
-  if (!marker) throw new Error('control: the draft-marker line was not found in util.ts');
+  if (!marker) throw new Error('control: the draft-marker line was not found in convert.ts');
   const synthetic = path.join(ROOT, 'fixtures', 'synthetic');
   const without = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-cov-ctl-'));
   let ok = true;
