@@ -87,11 +87,11 @@ would have been green and worthless.
 To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, and the rules about poem content.
 
     npm ci                 # ci, never install: the pins are exact and version-sensitive
-    npm run provenance     # asserts the transcribed TipTap config still matches upstream
-    MIDST_EDITOR_SRC=<midst-editor checkout> npm run build:harness   # builds the harness the commands below need
+    npm run provenance     # asserts the transcribed TipTap config and rules still match src/
+    npm run build:harness   # builds from src/convert.ts; the harness the commands below need
     npm test               # the self-tests (Jest): the text oracle, and a poem that FAILS leaves no text in the output; needs no harness
     npm run trajectory -- <poem.midst.zip>   # one archive's frame-by-frame replay, printed; needs the harness
-    npm run conformance:coverage   # how much of the editor's converter the corpus runs; numbers only
+    npm run conformance:coverage   # how much of src/convert.ts the corpus runs; numbers only
     npm run conformance    # the real corpus. Requires MIDST_CORPUS to point at it. Never in public CI.
 
 **Stdout is the report; stderr is the error log.** Every failure a script finds or meets is logged on stderr

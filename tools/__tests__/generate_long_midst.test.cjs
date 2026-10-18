@@ -2,8 +2,7 @@
  * @jest-environment node
  */
 // tools/generate_long_midst.mjs against a small INVENTED text (never the book, never a poem). Files are replayed with
-// the midst-editor's own `step` / `reconstruct` (src/renderer/tracking/utils.ts), bundled the way conformance/build.mjs
-// reaches the editor's source: MIDST_EDITOR_SRC, default ../midst-editor.
+// the library's own `step` / `reconstruct` (src/history.ts), bundled here with esbuild.
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -12,7 +11,7 @@ const esbuild = require('esbuild');
 
 const REPO = path.join(__dirname, '..', '..');
 const SCRIPT = path.join(REPO, 'tools', 'generate_long_midst.mjs');
-const EDITOR = path.resolve(process.env.MIDST_EDITOR_SRC || path.join(REPO, '..', 'midst-editor'));
+const HISTORY = path.join(REPO, 'src', 'history.ts');
 
 // Invented paragraphs, with the characters that need escaping, quotes, accents and one astral character (two UTF-16
 // units, one keystroke).
@@ -79,7 +78,7 @@ const paragraphsOfHtml = (html) => [...html.matchAll(/<p>(.*?)<\/p>/g)].map((m) 
 // ProseMirror position of a caret at the end of the document: a paragraph holds its text plus two boundary tokens, and
 // the document opens with none, so the end sits one token before the sum.
 const caretAtEnd = (html) => paragraphsOfHtml(html).reduce((n, p) => n + p.length + 2, 0) - 1;
-// Replays with the editor's own `step`, calling `visit(html, entry, i)` after every entry; returns the final HTML.
+// Replays with the library's `step`, calling `visit(html, entry, i)` after every entry; returns the final HTML.
 const replay = (file, visit = () => {}) => {
   let html = '';
   file.history.forEach((e, i) => {
@@ -123,13 +122,10 @@ function runsOf(edits) {
 const analysed = (name, o) => analyse(parse(gen(name, o).bytes));
 
 beforeAll(() => {
-  if (!fs.existsSync(path.join(EDITOR, 'src', 'renderer', 'tracking', 'utils.ts'))) {
-    throw new Error(`midst-editor source not found at ${EDITOR}: set MIDST_EDITOR_SRC to a midst-editor checkout`);
-  }
   work = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'longmidst-')));
-  const bundle = path.join(work, 'editor-utils.cjs');
+  const bundle = path.join(work, 'history.cjs');
   esbuild.buildSync({
-    entryPoints: [path.join(EDITOR, 'src', 'renderer', 'tracking', 'utils.ts')],
+    entryPoints: [HISTORY],
     bundle: true, platform: 'node', format: 'cjs', outfile: bundle, logLevel: 'silent',
   });
   editor = require(bundle);
@@ -170,7 +166,7 @@ describe('fractions', () => {
   });
 });
 
-describe('replay with the editor\'s own step/reconstruct', () => {
+describe('replay with the library\'s step/reconstruct', () => {
   let file;
   beforeAll(() => {
     file = parse(gen('replay.midst', { seed: 3 }).bytes);
@@ -189,7 +185,7 @@ describe('replay with the editor\'s own step/reconstruct', () => {
     });
     expect(bad).toBeNull();
   });
-  test('entries have the editor\'s fields and non-decreasing ISO times', () => {
+  test('entries have the library\'s fields and non-decreasing ISO times', () => {
     let last = -Infinity;
     file.history.forEach((e) => {
       expect(Object.keys(e)).toEqual(['inserted', 'front', 'end', 't', 'pos']);

@@ -6,29 +6,11 @@ import { createRequire } from 'module';
 const { logEvent, installUncaughtHandler } = createRequire(import.meta.url)('./log.cjs');
 installUncaughtHandler();
 const here = import.meta.dirname;
-const stub = (f) => path.join(here, 'stubs', f);
-// The converter is imported from midst-editor's real source, never copied.
-// Set MIDST_EDITOR_SRC to the midst-editor checkout root.
-const editor = process.env.MIDST_EDITOR_SRC;
-if (!editor) {
-  console.log('MIDST_EDITOR_SRC is not set: point it at a midst-editor checkout.');
-  logEvent('error', 'build-env-not-set');
-  process.exit(2);
-}
-// Resolved against the working directory: the value is written into an import in conformance/, where a relative
-// path would otherwise be read from the wrong place.
-const utilPath = path.join(path.resolve(editor), 'src', 'main', 'util');
+// The converter under test is this repository's own src/convert.ts (the library's source), never a copy.
+const convertPath = path.join(here, '..', 'src', 'convert');
 fsp.writeFileSync(path.join(here, 'entry.generated.ts'),
-  `import { convertMidstFile } from ${JSON.stringify(utilPath)};\nexport { convertMidstFile };\n`);
+  `import { convertMidstFile } from ${JSON.stringify(convertPath)};\nexport { convertMidstFile };\n`);
 
-const plugin = {
-  name: 'harness-stubs',
-  setup(b) {
-    b.onResolve({ filter: /^electron$/ },                 () => ({ path: stub('electron.js') }));
-    b.onResolve({ filter: /^\.\/store$/ },                () => ({ path: stub('store.js') }));
-    b.onResolve({ filter: /^renderer\/tracking\/utils$/ },() => ({ path: stub('tracking-utils.js') }));
-  },
-};
 let r;
 try {
   r = await esbuild.build({
@@ -37,8 +19,8 @@ try {
   outfile: path.join(here,'..','out','converter.cjs'),
   // Silent: esbuild would write its own messages to stderr, which carries only the JSONL log. Its warnings and
   // errors are printed below, on stdout.
-  plugins: [plugin], logLevel: 'silent', metafile: true,
-  // A source map lets coverage of this bundle be reported against midst-editor's util.ts (coverage.cjs).
+  logLevel: 'silent', metafile: true,
+  // A source map lets coverage of this bundle be reported against src/convert.ts (coverage.cjs).
   sourcemap: true,
   external: ['@tiptap/*', 'node-html-parser'],
   });
@@ -49,5 +31,5 @@ try {
 }
 for (const m of r.warnings) console.log('WARNING:', m.text, '|', m.location ? `${m.location.file}:${m.location.line}` : '');
 // Record exactly which real source files went into the bundle -- provenance, not a claim.
-const ins = Object.keys(r.metafile.inputs).filter(p => p.includes(path.join('src','main','util')));
-console.log('REAL app sources bundled:', ins);
+const ins = Object.keys(r.metafile.inputs).filter(p => p.includes(path.join('src','convert')));
+console.log('Library sources bundled:', ins);
