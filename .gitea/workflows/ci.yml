@@ -19,7 +19,8 @@ on:
   push:
     branches: [main]
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # A PR's runs share its ref; each push to main gets its own group, so a newer one cannot cancel it even while pending.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # Cancel a superseded run on a PR only: every push to main keeps its own verdict (midst-infra #102).
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
