@@ -1,6 +1,7 @@
 # Contributing to midst-format
 
-This repository describes the Midst file formats and checks the editor's converter against them: the
+This repository describes the Midst file formats and holds the shared format library (`src/`, which the
+editor and the website vendor), and checks the library's converter against the formats: the
 conformance suite replays every frame of a poem and compares the result. The README explains why it is
 built that way; please read it before changing the suite.
 
@@ -28,9 +29,7 @@ AGPL-3.0-or-later (`LICENSE`). By contributing you agree your contribution is li
 
 - **Node:** the version in `.nvmrc`. **npm only**: `npm ci`, never `npm install`, because the TipTap
   versions are pinned exactly and HTML generation changes between them (see the README).
-- The harness is built from the editor's real converter, so most commands need a checkout of
-  `midst-press/midst-editor`, with `MIDST_EDITOR_SRC` set to its root (and `MIDST_EDITOR_UTIL_TS` to its
-  `src/main/util.ts` for `npm run provenance`, which also reads `src/shared/poemExtensions.ts` beside it). The README's "Running it" section lists the commands.
+- The harness is built from this repository's own `src/convert.ts`; nothing else needs checking out. The README's "Running it" section lists the commands.
 
 ## Before you open a pull request
 
@@ -46,12 +45,12 @@ The `conformance-synthetic` hook runs the suite, so build the harness first:
 
 ```
 npm ci
-MIDST_EDITOR_SRC=../midst-editor npm run build:harness   # writes out/converter.cjs from the editor's source
+npm run build:harness         # writes out/converter.cjs from src/convert.ts
 pre-commit run --all-files    # the same checks CI runs, including conformance on the synthetic corpus
 npm test                      # self-tests (Jest); no harness needed
 ```
 
-Rebuild the harness whenever the editor's converter changes.
+Rebuild the harness whenever `src/convert.ts` changes.
 
 - A change to what the suite accepts as conformant needs a synthetic case that shows the difference.
 - `docs/KNOWN-DEVIATIONS.md` records where the converter is known to differ, and why. Update it when that

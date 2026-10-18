@@ -16,15 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { path: midst-format }
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: midst-press/midst-editor
-          path: midst-editor
       - run: npm ci
         working-directory: midst-format
       - name: build harness
         working-directory: midst-format
-        env: { MIDST_EDITOR_SRC: "${{ github.workspace }}/midst-editor" }
         run: npm run build:harness
       - name: run conformance
         working-directory: midst-format
