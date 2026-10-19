@@ -37,12 +37,18 @@ decides: a revert takes back every older commit with that subject, and the chang
 same subject, a Reapply "<subject>", or a revert of the revert) brings them back. Each commit taken back is named
 on stderr.
 
-What this does not see. The match is on subjects, so a revert takes back only commits with the subject it quotes.
-When the issue is named only in a pull request's title, only the merge commit names it: reverting the merge, or a
-revert whose title quotes that title, takes it back, but a revert of the commit inside the pull request
-(Revert "<that commit's subject>") does not, and the merge still says "completes" (midst-infra #34). A revert
-whose subject quotes nothing ("Revert the save change") takes back nothing. And a revert that goes up in a later
-push-up than its fix is not seen at all: by then the issue is marked, and undoing that is a person's act.
+A revert is also matched by the commit it names: git writes "This reverts commit <sha>." in its body (midst-infra
+#34). When that commit is in the range, it is taken back whatever the subjects say. A revert of a merge commit
+takes back every commit the merge brought in (<merge>^1..<merge>), so a branch commit whose subject differs from
+the pull request's title goes with it. A revert of a commit inside a merged pull request takes back that commit,
+and the merge no longer completes anything: part of the pull request is not in the code going up, so the issues
+its title names are listed as "refs", not "completes". A revert the pull request carries itself (a commit tried
+and reverted on the branch before the merge) does not: the merge's net change is what was reviewed, so it still
+completes. A revert that is itself reverted takes back nothing.
+
+What this does not see. A revert whose subject quotes nothing and whose body names no commit in the range ("Revert
+the save change", written by hand) takes back nothing. And a revert that goes up in a later push-up than its fix
+is not seen at all: by then the issue is marked, and undoing that is a person's act.
 
 A requirement often takes several pull requests, so naming an issue does not say it is done. The one that
 finishes it says so: "(completes GitHub #12)". That is "completes <number>" in the list, and it is the only thing
@@ -90,6 +96,8 @@ REVERT = re.compile(r"(?:Merge pull request ['\"])?Revert\b", re.IGNORECASE)
 GITEA_MERGE = re.compile(r"Merge pull request (?P<quote>['\"])(?P<inner>.*)(?P=quote) \(#[0-9]+\) from \S+ into \S+")
 # git's own subject for a revert, and for the revert of a revert (git 2.43 and later write Reapply for that):
 QUOTED_REVERT = re.compile(r'Revert "(?P<inner>.*)"', re.IGNORECASE)
+# The line git writes in a revert's body. At least seven hex digits, so a short placeholder names nothing.
+REVERTS_COMMIT = re.compile(r"^This reverts commit (?P<commit>[0-9a-f]{7,40})\b", re.MULTILINE)
 QUOTED_REAPPLY = re.compile(r'Reapply "(?P<inner>.*)"', re.IGNORECASE)
 
 GITHUB_HOSTS = ("github.com", "www.github.com")
@@ -229,6 +237,87 @@ def taken_back(subjects: list[str]) -> set[int]:
     return gone
 
 
+def structurally_taken_back(commits: list[str], messages: list[str]) -> tuple[set[int], set[int]]:
+    """Return which commits a revert takes back by the commit its body names, and which merges it makes partial.
+
+    Args:
+        commits: The full commit ids of a range, newest first, a commit always before its parents.
+        messages: Their messages, in the same order.
+
+    Returns:
+        (positions taken back, positions of merges that brought in a commit taken back but are not taken back
+        themselves). Reverts are never in the first set.
+
+    Raises:
+        subprocess.CalledProcessError: If git could not read a commit's parents or a merge's contents.
+    """
+    position = {commit: i for i, commit in enumerate(commits)}
+
+    def in_range(named: str) -> str | None:
+        found = [commit for commit in commits if commit.startswith(named)]
+        return found[0] if len(found) == 1 else None
+
+    names: dict[str, str] = {}  # revert -> the commit in the range it names
+    for commit, message in zip(commits, messages):
+        match = REVERTS_COMMIT.search(message)
+        target = in_range(match.group("commit")) if match else None
+        if target and target != commit:
+            names[commit] = target
+    reverted_by: dict[str, list[str]] = {}
+    for revert, target in names.items():
+        reverted_by.setdefault(target, []).append(revert)
+
+    undone_memo: dict[str, bool] = {}
+
+    def undone(commit: str) -> bool:
+        # Undone when a revert names it and that revert is not itself undone. A revert is newer than what it names.
+        if commit not in undone_memo:
+            undone_memo[commit] = any(not undone(r) for r in reverted_by.get(commit, []))
+        return undone_memo[commit]
+
+    contents: dict[str, list[str]] = {}  # merge in the range -> the commits in the range it brought in
+    for commit in commits:
+        parents = subprocess.run(
+            ["git", "rev-list", "--parents", "-n", "1", commit, "--"], check=True, capture_output=True, text=True
+        ).stdout.split()[1:]
+        if len(parents) > 1:
+            brought = subprocess.run(
+                ["git", "rev-list", f"{commit}^1..{commit}", "--"], check=True, capture_output=True, text=True
+            ).stdout.split()
+            contents[commit] = [c for c in brought if c in position and c != commit]
+
+    gone = {c for c in commits if c not in names and undone(c)}
+    for merge, brought in contents.items():
+        if merge in gone:
+            gone.update(c for c in brought if c not in names)
+
+    def taken_back_from_outside(commit: str, inside: set[str]) -> bool:
+        # A revert the pull request itself carries (commit X, revert X, then Y, all merged) leaves its net
+        # change as reviewed, so it does not make the merge partial. Taken back with no revert of its own (inside
+        # another reverted merge) counts as from outside.
+        effective = [r for r in reverted_by.get(commit, []) if not undone(r)]
+        return not effective or any(r not in inside for r in effective)
+
+    partial = {
+        m
+        for m, brought in contents.items()
+        if m not in gone and any(c in gone and taken_back_from_outside(c, set(brought)) for c in brought)
+    }
+    return {position[c] for c in gone}, {position[m] for m in partial}
+
+
+def git_said(error: BaseException) -> str:
+    """Return what git wrote on stderr when it failed, as a line to add to our message, or "" if nothing.
+
+    The calls capture git's output, so without this the reason (a bad revision, a shallow clone missing a
+    parent, not a repository) would never be shown, only the exit status.
+    """
+    said = getattr(error, "stderr", None)
+    if isinstance(said, bytes):
+        said = said.decode("utf-8", errors="replace")
+    return f"\n  git said: {said.strip()}" if isinstance(said, str) and said.strip() else ""
+
+
 def message_from_file(raw: str) -> str:
     """Return the commit message in a message file: what precedes git's scissors line.
 
@@ -300,12 +389,14 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--list and --list-github are separate questions; ask one")
 
     texts: list[tuple[str, str]] = []  # (where it was found, text)
+    commits: list[str] = []  # the range's full commit ids, in the order their texts were added first
     try:
         if args.message_file:
             with open(args.message_file, encoding="utf-8", errors="replace") as handle:
                 texts.append(("the commit message", message_from_file(handle.read())))
         if args.revision_range:
             for commit, message in commit_messages(args.revision_range):
+                commits.append(commit)
                 texts.append((commit[:12], message))
         for name, where in ((args.title_env, "the title"), (args.body_env, "the description")):
             if not name:
@@ -315,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             texts.append((where, os.environ[name]))
     except (OSError, subprocess.CalledProcessError) as error:
-        print(f"closing_refs: could not read the text to check: {error}", file=sys.stderr)
+        print(f"closing_refs: could not read the text to check: {error}{git_said(error)}", file=sys.stderr)
         return 2
 
     if args.list_only:
@@ -328,6 +419,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_github:
         completed: dict[int, bool] = {}
         gone = taken_back([text.split("\n", 1)[0] for _, text in texts])
+        try:
+            by_commit, partial = structurally_taken_back(commits, [text for _, text in texts[: len(commits)]])
+        except subprocess.CalledProcessError as error:
+            print(f"closing_refs: could not read the range's merges: {error}{git_said(error)}", file=sys.stderr)
+            return 2
+        gone |= by_commit
         for position, (where, text) in enumerate(texts):
             if position in gone:
                 if github_issues_served(text):
@@ -336,8 +433,14 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                 continue
-            for number, completes in github_issues_served(text):
-                completed[number] = completed.get(number, False) or completes
+            served = github_issues_served(text)
+            if position in partial and any(completes for _, completes in served):
+                print(
+                    f"closing_refs: {where} brought in a commit reverted later in this range; it completes nothing",
+                    file=sys.stderr,
+                )
+            for number, completes in served:
+                completed[number] = completed.get(number, False) or (completes and position not in partial)
         for number in sorted(completed):
             print("completes" if completed[number] else "refs", number)
         return 0
