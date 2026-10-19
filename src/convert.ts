@@ -76,23 +76,19 @@ const frameJSON = (html: string) =>
 const keptBlock = (source: string, lineNumber: string): number => {
   const line = Number(lineNumber);
   if (!Number.isFinite(line) || line < 0) return -1;
-  // A private-use character, lengthened until the frame does not contain it, so every <p>mark</p> in the marked
-  // frame is one this function put there.
+  if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
+  // A private-use character, lengthened until neither the frame nor its text (character references decoded)
+  // contains it, so every block that reads as the mark is a <p>mark</p> this function put there.
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
   let mark = '\uE000';
-  while (source.includes(mark)) mark += '\uE000';
+  while (source.includes(mark) || text.includes(mark)) mark += '\uE000';
   const marked = markInvisibleParagraphs(source, mark);
-  if (marked === source) return Math.floor(line);
-  const inserted = marked.split(`<p>${mark}</p>`).length - 1;
   const before = schema.nodeFromJSON(frameJSON(marked));
-  let found = 0;
-  for (let i = 0; i < before.childCount; i += 1)
-    if (before.child(i).textContent === mark) found += 1;
-  // A kept paragraph that reads as the mark (through a character reference), or a marker the parse merged or
-  // split, would shift the count, so say so rather than return the wrong line.
-  if (found !== inserted)
-    throw new Error(
-      `convert: ${inserted} dropped paragraphs marked but ${found} found in the frame's blocks`
-    );
+  // The kept blocks are the converted document's, in order. That holds because a block reads as the mark only if it
+  // is one of the <p>mark</p> put here (the mark is in neither the frame nor its decoded text), and the parse keeps
+  // each of those a block of its own. It did in 17 nested and container shapes (a <p> inside a <p>, an inline tag, a
+  // div, li, blockquote, td, pre or h1) and in every frame of the 54 archive poems, converted at 26b83c9 with a check
+  // that threw on any difference in the count (midst-format #65).
   const last = Math.min(before.childCount, Math.floor(line) + 1);
   let kept = 0;
   for (let i = 0; i < last; i += 1)

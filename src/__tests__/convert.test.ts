@@ -239,10 +239,9 @@ describe('converting an old file', () => {
       expect(pos('<p>\uE000</p><p></p><p>zq</p>', '2')).toBe(6);
     });
 
-    it('throws rather than miscount when a kept line reads as the mark', () => {
-      expect(() => pos('<p>&#xE000;</p><p></p>', '0')).toThrow(
-        '1 dropped paragraphs marked but 2 found'
-      );
+    it('maps the line when a kept line reads as the mark through a character reference', () => {
+      expect(pos('<p>&#xE000;</p><p></p><p>zq</p>', '1')).toBe(2);
+      expect(pos('<p>&#xE000;</p><p></p><p>zq</p>', '2')).toBe(6);
     });
 
     it('is the end of the last kept line for a line past the end', () => {
