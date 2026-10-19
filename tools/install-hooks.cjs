@@ -19,8 +19,11 @@
 //   - CI is set. CI runs `pre-commit run --all-files` itself and never commits.
 //   - This is not a git clone of the repository (a source archive has no hooks to install).
 //
-// Exit 0: both hooks are installed, or one of the two cases above. Exit 1: they are not, with the
-// reason and what to do.
+// Exit 0: the hooks are installed, or one of the two cases above. Exit 1: they are not, with the
+// reason, on stderr, and what to do.
+//
+// The same file in every midst repository. The one to change is midst-infra's tools/install-hooks.cjs (#37);
+// each repository's copy is pinned by its tools/midst-infra-copies.sha256.
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
