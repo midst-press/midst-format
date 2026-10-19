@@ -84,8 +84,7 @@ checks, because the hashes alone can be edited in the same commit as the files:
   checks that the tag's commit is the one recorded, builds, and byte-compares `dist/` with
   `vendor/midst-format/`. midst-format is public on both forges, so the clone needs no key: on Gitea it is
   anonymous over `http://gitea-server:3000` (editor #203), and on GitHub it waits until the tag is pushed up. This depends on a tag, which does not move, and not on
-  format `main`. Locally the same check runs with `MIDST_FORMAT_ROOT` set, as web's editor-helpers check
-  does with `MIDST_EDITOR_ROOT`.
+  format `main`. Locally the same check runs with `MIDST_FORMAT_ROOT` set.
 
 **Versioning.** Semver tags `vX.Y.Z` on midst-format `main`, cut from a commit whose CI is green, never
 from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change in behaviour, such as the
