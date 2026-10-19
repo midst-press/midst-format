@@ -26,6 +26,7 @@ const { textOf } = require('./textexact.cjs');
 // Required where used, so a usage error is reported without a built harness or a browser.
 const convertMidstFile = (raw) => require('../out/converter.cjs').convertMidstFile(raw);
 const openRenderer = () => require('./render_page.cjs').openRenderer();
+const comparableEditorLines = (...a) => require('./render_page.cjs').comparableEditorLines(...a);
 
 // Known open defects, each generated only under --open.
 const OPEN = {
@@ -33,7 +34,6 @@ const OPEN = {
   divLine: 'midst-editor #15: a non-empty <div>a<br></div> still doubles',
   plainTab: 'midst-editor #17: a plain tab (not in a white-space: pre span) showed as one space in the old app',
   hiddenAfterBr: 'midst-editor #15: a <br> followed only by invisible inline content (a selection marker, an empty or whitespace-only tag) is not drawn by a browser, but the converter keeps it',
-  emptyLine: 'midst-editor #15: a paragraph with nothing visible (spaces, newlines, hidden markers) is zero height in a browser, one line in the editor',
 };
 
 const arg = (k, d) => {
@@ -98,8 +98,6 @@ function genInline(r, depth) {
 }
 const genKids = (r, depth, n) => Array.from({ length: n }, () => genInline(r, depth));
 
-// Nothing a browser draws a line box for: spaces and newlines collapse, a selection marker is display: none.
-const invisible = (kids) => kids.every((k) => ['sp', 'nl', 'mark'].includes(k.t) || (k.t === 'wrap' && invisible(k.kids)));
 // A <br> followed, to the end of the line, only by invisible inline content (a marker, or a tag holding nothing
 // visible) is a trailing break the converter cannot see. Spaces alone are fine: its rule allows them.
 function brThenHidden(kids) {
@@ -117,7 +115,6 @@ function brThenHidden(kids) {
 function lineAllowed(l) {
   if (l.kind === 'blank') return true;
   if (!l.kids.length) return false;
-  if (!on('emptyLine') && !l.trailingBr && invisible(l.kids)) return false; // OPEN.emptyLine
   if (!on('hiddenAfterBr') && brThenHidden(l.kids)) return false; // OPEN.hiddenAfterBr
   return true;
 }
@@ -278,7 +275,7 @@ async function check(c, R) {
     if (textOf(acc, { editor: true }) !== textOf(src)) fails.add('text');
     if (acc !== normalise(src)) fails.add('trajectory');
     const b = await R.browserLines(src),
-      e = await R.editorLines(acc);
+      e = comparableEditorLines(b, await R.editorLines(acc), acc);
     if (b !== e) fails.add(e > b ? 'lines-editorMore' : 'lines-editorFewer');
   }
   return [...fails].sort();

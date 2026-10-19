@@ -90,6 +90,7 @@ async function main() {
     process.exit(2);
   }
   const r = await require("./render_page.cjs").openRenderer();
+  const { comparableEditorLines } = require("./render_page.cjs");
 
   // KNOWN differences, a ratchet: --known FILE maps fixture name -> expected differing-frame count.
   // Any count that CHANGES fails, so a regression and a fix both demand an edit here, with a reason.
@@ -105,7 +106,7 @@ async function main() {
       fewer = 0;
     for (const f of frames) {
       const b = await r.browserLines(f.content);
-      const e = await r.editorLines(f.converted);
+      const e = comparableEditorLines(b, await r.editorLines(f.converted), f.converted);
       if (b !== e) {
         diff++;
         if (e > b) more++;

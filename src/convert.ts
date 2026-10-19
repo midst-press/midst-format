@@ -101,6 +101,30 @@ export const dropZeroWidthOnlyElements = (html: string) => {
   return current;
 };
 
+// A paragraph that draws nothing in the old player: no text, no <br>, no no-break space, no tab, only collapsible
+// whitespace (space, newline) and inline tags with nothing in them. The old player's only paragraph rule is
+// `.editor .editable p { margin: 0; padding: 0; }` (midst-web's seed, midst-player-hack/style.css): no minimum
+// height and no white-space, so such a paragraph is zero height and the poet never saw it as a line. ProseMirror
+// draws every paragraph, so each became a blank line (midst-editor #169). A tag whose own style could give it a
+// box or keep its whitespace (white-space, display, height, min-height, padding, border) is never matched, and nor is
+// anything not listed here: such a paragraph is kept, as before. Runs before dropTrailingBreaks, which turns the
+// visible <p><br></p> into <p></p>. Repeats, so a paragraph emptied by the removal of one inside it goes too.
+const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
+const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|padding|border)\\s*:)`;
+const INVISIBLE_PARAGRAPH = new RegExp(
+  `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
+  'gi'
+);
+export const dropInvisibleParagraphs = (html: string) => {
+  let current = html;
+  let next = current.replace(INVISIBLE_PARAGRAPH, '');
+  while (next !== current) {
+    current = next;
+    next = current.replace(INVISIBLE_PARAGRAPH, '');
+  }
+  return current;
+};
+
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
  * is copied unchanged; a field B does not have is left out, so the reader's default applies.
@@ -157,7 +181,9 @@ export const convertMidstFile = (oldMidst: string) => {
     // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
     // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
     const jsonContentAtFrame = generateJSON(
-      dropTrailingBreaks(dropZeroWidthOnlyElements(el.content)),
+      dropTrailingBreaks(
+        dropInvisibleParagraphs(dropZeroWidthOnlyElements(el.content))
+      ),
       poemExtensions,
       {
         preserveWhitespace: true,

@@ -52,4 +52,10 @@ async function openRenderer() {
   }
   return { browserLines, editorLines, close: () => browser.close(), SOURCE_WS };
 }
-module.exports = { openRenderer };
+// The editor cannot show no line at all: an empty document is one empty paragraph, as a new document is. So where the
+// old app drew nothing (every paragraph empty, midst-editor #169), the converter's empty document is the same state, not
+// a line added. Only that exact pairing is excused: browser 0, editor 1, and the editor's HTML an empty document.
+const EMPTY_DOCUMENT = /^\s*(?:<p><\/p>)?\s*$/;
+const comparableEditorLines = (browserCount, editorCount, editorHtml) =>
+  browserCount === 0 && editorCount === 1 && EMPTY_DOCUMENT.test(editorHtml) ? 0 : editorCount;
+module.exports = { openRenderer, comparableEditorLines };

@@ -41,7 +41,27 @@ const dropZeroWidthOnlyElements = (html) => {
   }
   return current;
 };
-// The order matches convertMidstFile: dropTrailingBreaks(dropZeroWidthOnlyElements(html)).
+// The invisible-paragraph rule mirrors convert.ts (midst-editor #169; provenance.cjs asserts the declarations are
+// identical): a paragraph with nothing a browser draws had no height in the old player, so it is not a line.
+const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
+const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|padding|border)\\s*:)`;
+const INVISIBLE_PARAGRAPH = new RegExp(
+  `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
+  'gi'
+);
+const dropInvisibleParagraphs = (html) => {
+  let current = html;
+  let next = current.replace(INVISIBLE_PARAGRAPH, '');
+  while (next !== current) {
+    current = next;
+    next = current.replace(INVISIBLE_PARAGRAPH, '');
+  }
+  return current;
+};
+// The order matches convertMidstFile: dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(html))).
 const normalise = (html) =>
-  generateHTML(generateJSON(dropTrailingBreaks(dropZeroWidthOnlyElements(html)), extensions, { preserveWhitespace: true }), extensions);
-module.exports = { extensions, normalise, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements };
+  generateHTML(
+    generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(html))), extensions, { preserveWhitespace: true }),
+    extensions,
+  );
+module.exports = { extensions, normalise, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };
