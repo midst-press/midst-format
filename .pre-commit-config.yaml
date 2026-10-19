@@ -69,11 +69,17 @@ repos:
         entry: python3 tools/closing_refs.py --message-file
         stages: [commit-msg]
       - id: midst-infra-copies
-        name: tools/closing_refs.py, tools/issue_flow.py and tools/refuse_force_push.py are copies from midst-infra (change them there first, then here with the checksums)
+        name: tools/closing_refs.py, tools/issue_flow.py, tools/refuse_force_push.py, tools/install-hooks.cjs, tools/require-hooks.cjs and tools/test-install-hooks.cjs are copies from midst-infra (change them there first, then here with the checksums)
         language: system
         entry: shasum -a 256 -c tools/midst-infra-copies.sha256
         pass_filenames: false
-        files: '^tools/(closing_refs\.py|issue_flow\.py|refuse_force_push\.py|midst-infra-copies\.sha256)$'
+        files: '^tools/(closing_refs\.py|issue_flow\.py|refuse_force_push\.py|install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs|midst-infra-copies\.sha256)$'
+      - id: test-install-hooks
+        name: tools/test-install-hooks.cjs (the git-hook installer, a copy from midst-infra #37)
+        language: system
+        entry: node --test tools/test-install-hooks.cjs
+        pass_filenames: false
+        files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
 
       # ---- a pushed branch is never rewritten. The servers refuse it (Gitea and GitHub); this says so before
       # anything is sent, and what to do instead. A copy from midst-infra, tested there. ----
