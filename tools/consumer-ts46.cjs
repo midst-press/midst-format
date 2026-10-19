@@ -16,7 +16,9 @@ const fs = require("fs"),
 const { spawnSync } = require("child_process");
 
 const root = path.join(__dirname, "..");
-const SUBPATHS = ["history", "extensions", "convert"];
+const SUBPATHS = ["history", "extensions", "convert", "follow", "build-label"];
+// A subpath as a TypeScript identifier: build-label -> buildLabel.
+const identifier = (name) => name.replace(/-(\w)/g, (_, c) => c.toUpperCase());
 
 // What a subpath exports, read from its declarations (the CommonJS build needs TipTap to load): values, types, and
 // whether there is a default. Read from the build, so a new export is imported too.
@@ -37,12 +39,14 @@ function consumerSource(dist) {
     const spec = `@midst-press/midst-format/${name}`;
     const names = [...e.named, ...e.types];
     const bindings = [
-      e.hasDefault ? `${name}Default` : null,
+      e.hasDefault ? `${identifier(name)}Default` : null,
       names.length ? `{ ${names.join(", ")} }` : null,
     ].filter(Boolean);
     lines.push(`import ${bindings.join(", ")} from '${spec}';`);
     if (e.types.length)
-      lines.push(`export type Types_${name} = [${e.types.join(", ")}];`);
+      lines.push(
+        `export type Types_${identifier(name)} = [${e.types.join(", ")}];`,
+      );
   }
   // One value from each subpath, used.
   lines.push(
@@ -50,6 +54,8 @@ function consumerSource(dist) {
     'export const replayed: string = step("a", change);',
     "export const extensionCount: number = extensionsDefault.length;",
     'export const version: string = getFileVersion("midstVersion: 1\\n{}");',
+    "export const glidingNow: boolean = gliding(null);",
+    "export const label: string = buildLabel({ tag: 'v0.3.0' });",
   );
   return `${lines.join("\n")}\n`;
 }
@@ -128,6 +134,6 @@ function main() {
   return r.ok ? 0 : 1;
 }
 
-module.exports = { checkConsumer, consumerSource };
+module.exports = { checkConsumer, consumerSource, SUBPATHS };
 
 if (require.main === module) process.exitCode = main();

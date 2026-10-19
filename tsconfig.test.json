@@ -4,9 +4,9 @@
     "declaration": false,
     "emitDeclarationOnly": false,
     "rootDir": "src",
-    "types": ["jest"],
+    "types": ["jest", "node"],
     "target": "es2021",
-    "lib": ["es2021"]
+    "lib": ["es2021", "dom"]
   },
   "include": ["src"]
 }

@@ -14,7 +14,10 @@ import { execFileSync } from "child_process";
 import { fileURLToPath } from "url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ENTRIES = ["history", "extensions", "convert"];
+const ENTRIES = ["history", "extensions", "convert", "follow", "build-label"];
+// An entry point's directory is its source file's name, except where the subpath is spelled differently.
+const SOURCE = { "build-label": "buildLabel" };
+export const sourceOf = (name) => SOURCE[name] ?? name;
 // Entries another entry imports. They stay external, so their code exists once.
 const INTERNAL = ["history", "extensions"];
 const PEERS = ["@tiptap/core", "@tiptap/html", "@tiptap/starter-kit"];
@@ -53,7 +56,7 @@ const internalImports = (file) => ({
 
 async function bundle(outDir, name, { format, file }) {
   await esbuild.build({
-    entryPoints: [path.join(root, "src", `${name}.ts`)],
+    entryPoints: [path.join(root, "src", `${sourceOf(name)}.ts`)],
     outfile: path.join(outDir, name, file),
     bundle: true,
     format,
@@ -82,7 +85,10 @@ function emitDeclarations(outDir) {
     );
     let rewritten = 0;
     for (const name of ENTRIES) {
-      const source = fs.readFileSync(path.join(tmp, `${name}.d.ts`), "utf8");
+      const source = fs.readFileSync(
+        path.join(tmp, `${sourceOf(name)}.d.ts`),
+        "utf8",
+      );
       const r = rewriteDeclarationSpecifiers(source, name);
       rewritten += r.rewritten;
       fs.writeFileSync(path.join(outDir, name, "index.d.ts"), r.text);

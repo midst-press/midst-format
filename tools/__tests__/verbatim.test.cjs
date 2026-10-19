@@ -13,8 +13,10 @@ const EDITOR_A = `import x from 'x';\n// keeps ${MARK}\nexport const one = 1;\n\
 const EDITOR_UTIL = `import a from 'a';\nexport const keep = 1;\n\nexport const dropped = () => 0;\n\nexport const last = 3;\n`;
 const OURS_A = EDITOR_A;
 const OURS_UTIL = `import b from './b';\nexport const keep = 1;\n\nexport const last = 3;\n`;
+// A file of a later move, committed after the first move's files were deleted from the editor.
+const EDITOR_B = `export const b = 'b';\n`;
 
-let tmp, editor, commit;
+let tmp, editor, commit, laterCommit;
 const git = (...args) =>
   execFileSync(
     "git",
@@ -40,22 +42,44 @@ beforeAll(() => {
   git("add", "x");
   git("commit", "-q", "-m", "editor");
   commit = git("rev-parse", "HEAD").trim();
+  // The editor then drops the first move's files and gains another, as it did after #50.
+  git("rm", "-q", "x/a.ts", "x/util.ts");
+  fs.mkdirSync(path.join(editor, "x"), { recursive: true });
+  fs.writeFileSync(path.join(editor, "x", "b.ts"), EDITOR_B);
+  git("add", "x");
+  git("commit", "-q", "-m", "later");
+  laterCommit = git("rev-parse", "HEAD").trim();
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-// A format root with the given contents of src/a.ts and src/convert.ts.
-function run({ a = OURS_A, convert = OURS_UTIL, excluded = ["dropped"] } = {}) {
+// Two moves, as MOVED_FROM.json holds them: a.ts and convert.ts from the first commit, b.ts from the later one.
+const moves = (excluded, later = laterCommit) => ({
+  moves: [
+    {
+      editorCommit: commit,
+      files: { "src/a.ts": "x/a.ts", "src/convert.ts": "x/util.ts" },
+      excludedFromConvert: excluded,
+    },
+    { editorCommit: later, files: { "src/b.ts": "x/b.ts" } },
+  ],
+});
+
+// A format root with the given contents of src/a.ts, src/convert.ts and src/b.ts.
+function run({
+  a = OURS_A,
+  convert = OURS_UTIL,
+  b = EDITOR_B,
+  excluded = ["dropped"],
+  movedFrom,
+} = {}) {
   const root = fs.mkdtempSync(path.join(tmp, "root-"));
   fs.mkdirSync(path.join(root, "src"));
   fs.writeFileSync(path.join(root, "src", "a.ts"), a);
   fs.writeFileSync(path.join(root, "src", "convert.ts"), convert);
+  fs.writeFileSync(path.join(root, "src", "b.ts"), b);
   fs.writeFileSync(
     path.join(root, "src", "MOVED_FROM.json"),
-    JSON.stringify({
-      editorCommit: commit,
-      files: { "src/a.ts": "x/a.ts", "src/convert.ts": "x/util.ts" },
-      excludedFromConvert: excluded,
-    }),
+    JSON.stringify(movedFrom ?? moves(excluded)),
   );
   const r = spawnSync(process.execPath, [script, "--root", root], {
     encoding: "utf8",
@@ -67,7 +91,7 @@ function run({ a = OURS_A, convert = OURS_UTIL, excluded = ["dropped"] } = {}) {
 describe("the verbatim check", () => {
   it("passes when every statement is the editor's, whatever the imports", () => {
     const r = run();
-    expect(r.out).toContain("verbatim OK: 2 files match");
+    expect(r.out).toContain("verbatim OK: 3 files match");
     expect(r.status).toBe(0);
   });
 
@@ -116,5 +140,40 @@ describe("the verbatim check", () => {
     const r = run();
     expect(r.out).toContain("drift: x/a.ts");
     expect(r.status).toBe(0);
+  });
+
+  // The first move's files are gone at the later commit, so reading every file at one commit cannot pass.
+  it("reads each file at its own move's commit", () => {
+    const r = run();
+    expect(r.out).toContain(`src/a.ts <- x/a.ts at ${commit}`);
+    expect(r.out).toContain(`src/b.ts <- x/b.ts at ${laterCommit}`);
+    const oneCommit = run({ movedFrom: moves(["dropped"], commit) });
+    expect(oneCommit.status).toBe(1);
+  });
+
+  it("fails when a file of a later move changes", () => {
+    const r = run({ b: EDITOR_B.replace("'b'", "'c'") });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("statement 0 (b) differs");
+  });
+
+  it("fails when a move names no editor commit", () => {
+    const m = moves(["dropped"]);
+    delete m.moves[1].editorCommit;
+    const r = run({ movedFrom: m });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("names no editor commit for src/b.ts");
+  });
+
+  // The shape before moves: one commit for every file. Read now, it lists nothing, and must not pass.
+  it("fails on a MOVED_FROM.json with no moves", () => {
+    const r = run({
+      movedFrom: {
+        editorCommit: commit,
+        files: { "src/a.ts": "x/a.ts" },
+      },
+    });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("MOVED_FROM.json lists no files");
   });
 });

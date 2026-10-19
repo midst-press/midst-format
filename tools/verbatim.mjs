@@ -1,6 +1,6 @@
-// The moved code is the editor's code (midst-format #50, docs/LIBRARY.md). For each file in
-// src/MOVED_FROM.json, the top-level statements of src/<file> must equal those of the editor's file at the
-// pinned commit, byte for byte, imports aside. This is the only check on `step` and `reconstruct*`, which
+// The moved code is the editor's code (midst-format #50, docs/LIBRARY.md). For each file in each move of
+// src/MOVED_FROM.json, the top-level statements of src/<file> must equal those of the editor's file at that
+// move's commit, byte for byte, imports aside. This is the only check on `step` and `reconstruct*`, which
 // the conformance corpus never calls.
 //
 //   MIDST_EDITOR_SRC=<editor clone> node tools/verbatim.mjs [--root <format root>] [--ref <editor ref>]
@@ -93,17 +93,32 @@ function main() {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
-  const entries = Object.entries(moved.files);
+  // Each move names the editor commit its files came from. The files of an earlier move may be gone from the
+  // editor since, so one commit cannot stand for all of them.
+  const entries = (moved.moves ?? []).flatMap((move) =>
+    Object.entries(move.files ?? {}).map(([ours, theirs]) => ({
+      ours,
+      theirs,
+      commit: move.editorCommit,
+      exclude:
+        ours === "src/convert.ts" ? (move.excludedFromConvert ?? []) : [],
+    })),
+  );
   if (entries.length === 0) {
     console.log("verbatim: MOVED_FROM.json lists no files");
     return 1;
   }
+  const uncommitted = entries.filter((e) => typeof e.commit !== "string");
+  if (uncommitted.length) {
+    console.log(
+      `verbatim: MOVED_FROM.json names no editor commit for ${uncommitted.map((e) => e.ours).join(", ")}`,
+    );
+    return 1;
+  }
 
-  console.log(`verbatim: editor commit ${moved.editorCommit}`);
   let failed = 0;
-  for (const [ours, theirs] of entries) {
-    const exclude = ours === "src/convert.ts" ? moved.excludedFromConvert : [];
-    const editorText = git("show", `${moved.editorCommit}:${theirs}`);
+  for (const { ours, theirs, commit, exclude } of entries) {
+    const editorText = git("show", `${commit}:${theirs}`);
     const e = statementsOf(editorText, exclude);
     const o = statementsOf(fs.readFileSync(path.join(root, ours), "utf8"));
     const r = compareStatements(e.statements, o.statements);
@@ -113,24 +128,17 @@ function main() {
         `excluded names not found in the editor file: ${e.missingExcluded.join(", ")}`,
       );
     console.log(
-      `${ours} <- ${theirs}: ${r.compared} statements compared (${exclude.length} excluded), ${r.problems.length} problems`,
+      `${ours} <- ${theirs} at ${commit}: ${r.compared} statements compared (${exclude.length} excluded), ${r.problems.length} problems`,
     );
     for (const p of r.problems) console.log(`  ${p}`);
     if (r.problems.length) failed++;
   }
 
-  // Drift is information, not a failure: the editor moving on is for stage 2 to take up.
-  for (const [, theirs] of entries) {
+  // Drift is information, not a failure: the editor moving on is for a later stage to take up.
+  for (const { theirs, commit } of entries) {
     try {
       const changed =
-        git(
-          "diff",
-          "--name-only",
-          moved.editorCommit,
-          ref,
-          "--",
-          theirs,
-        ).trim() !== "";
+        git("diff", "--name-only", commit, ref, "--", theirs).trim() !== "";
       console.log(
         `drift: ${theirs} ${changed ? `DIFFERS at ${ref}` : `unchanged at ${ref}`}`,
       );
