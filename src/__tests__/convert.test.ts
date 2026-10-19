@@ -5,6 +5,7 @@ import { reconstruct } from '../history';
 import poemExtensions from '../extensions';
 import {
   convertMidstFile,
+  dropInvisibleParagraphs,
   dropTrailingBreaks,
   dropZeroWidthOnlyElements,
   fileVersionMatchesCurrent,
@@ -173,7 +174,7 @@ describe('converting an old file', () => {
 
     it('is the end of the line, in ProseMirror positions', () => {
       expect(pos('<p>zq</p>', '0')).toBe(3);
-      expect(pos('<p></p>', '0')).toBe(1);
+      expect(pos('<p><br></p>', '0')).toBe(1);
     });
 
     it('is the end of the line being written, past the lines before it', () => {
@@ -202,7 +203,7 @@ describe('converting an old file', () => {
     // The end of a block's content is where a cursor typing at the end of that line sits.
     it('is a position in the converted document that ends a block', () => {
       const schema = getSchema(poemExtensions);
-      const content = '<p>zq</p><p>x<em>v</em><br>kj</p><p></p>';
+      const content = '<p>zq</p><p>x<em>v</em><br>kj</p><p>z</p>';
       const doc = schema.nodeFromJSON(
         generateJSON(content, poemExtensions, { preserveWhitespace: true })
       );
@@ -212,6 +213,43 @@ describe('converting an old file', () => {
         expect(at.parentOffset).toBe(at.parent.content.size);
         expect(at.index(0)).toBe(Number(line));
       });
+    });
+
+    // The recorded line counts the paragraphs the old player drew nothing for, which the converted document
+    // drops (midst-editor #169), so the line is mapped through the drop.
+    it('is the end of the same line when a paragraph before it was dropped', () => {
+      expect(pos('<p>zq</p><p></p><p>xv</p>', '0')).toBe(3);
+      // A line after the one written, so the end of the document is not also the right answer.
+      expect(pos('<p>zq</p><p></p><p>xv</p><p>kj</p>', '2')).toBe(7);
+      expect(pos('<p></p><p> </p><p>zq</p><p>xv</p>', '2')).toBe(3);
+    });
+
+    it('is the end of the line before when the recorded line itself was dropped', () => {
+      expect(pos('<p>zq</p><p></p><p>xv</p>', '1')).toBe(3);
+      expect(pos('<p>zq</p><p><em></em></p><p></p><p>xv</p>', '2')).toBe(3);
+    });
+
+    it('is the start of the document when no line at or before it was kept', () => {
+      expect(pos('<p></p><p>zq</p>', '0')).toBe(0);
+      expect(pos('<p></p><p>zq</p>', '1')).toBe(3);
+      expect(pos('<p></p>', '0')).toBe(0);
+    });
+
+    it('maps the line when the frame already holds the mark character', () => {
+      expect(pos('<p>\uE000</p><p></p><p>zq</p>', '2')).toBe(6);
+    });
+
+    it('maps the line when a kept line reads as the mark through a character reference', () => {
+      expect(pos('<p>&#xE000;</p><p></p><p>zq</p>', '1')).toBe(2);
+      expect(pos('<p>&#xE000;</p><p></p><p>zq</p>', '2')).toBe(6);
+    });
+
+    it('is the end of the last kept line for a line past the end', () => {
+      expect(pos('<p>zq</p><p></p>', '5')).toBe(3);
+    });
+
+    it('does not count a visible blank line as dropped', () => {
+      expect(pos('<p>zq</p><p><br></p><p>xv</p>', '2')).toBe(9);
     });
   });
 });
@@ -318,9 +356,10 @@ describe('a selection marker left in an old file', () => {
     expect(steps[steps.length - 1]).toBe(c.text);
   });
 
-  it('keeps a line the poet left blank', () => {
+  // <p><br></p> is a blank line the poet saw; <p></p> drew nothing in the old player (midst-editor #169).
+  it('keeps a line the poet left blank, and drops an empty paragraph that showed nothing', () => {
     const c = convert([`${RANGY}<p>zq</p><p><br></p><p></p><p>xv</p>`]);
-    expect(paragraphs(c.text)).toEqual(['zq', '', '', 'xv']);
+    expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
   });
 
   it('keeps the paragraph and its text when the marker sits inside it, and drops the marker', () => {
@@ -361,5 +400,91 @@ describe('a selection marker left in an old file', () => {
     ['an empty paragraph', '<p></p>'],
   ])('is not removed with %s', (_name, html) => {
     expect(dropZeroWidthOnlyElements(html)).toBe(html);
+  });
+});
+
+// midst-editor #169: a paragraph with nothing a browser draws had no height in the old player (its only paragraph
+// rule is margin 0, padding 0), but ProseMirror draws every paragraph, so each became a blank line.
+describe('a paragraph that drew nothing', () => {
+  it.each([
+    ['an empty paragraph', '<p></p>'],
+    ['spaces and newlines only', '<p> \n </p>'],
+    ['an attribute on the paragraph', '<p data-line-number="3"></p>'],
+    ['an empty inline tag', '<p><span></span></p>'],
+    ['empty tags nested, with spaces', '<p> <em><strong> </strong></em> </p>'],
+    ['an inline style that gives no box', '<p><span style="font-size: 12px; line-height: 0"></span></p>'],
+    ['a <font>, <sup> or <sub> holding nothing', '<p><font color="red"></font><sup></sup><sub> </sub></p>'],
+  ])('is dropped: %s', (_name, html) => {
+    expect(dropInvisibleParagraphs(`<p>zq</p>${html}<p>xv</p>`)).toBe(
+      '<p>zq</p><p>xv</p>'
+    );
+  });
+
+  it.each([
+    ['a blank line the poet left', '<p><br></p>'],
+    ['a <br> inside a tag', '<p><em><br></em></p>'],
+    ['a no-break space', '<p>&nbsp;</p>'],
+    ['a literal no-break space', '<p> </p>'],
+    ['a tab', '<p>\t</p>'],
+    ['a character reference', '<p>&#32;</p>'],
+    ['text', '<p>zq</p>'],
+    ['spaces kept by white-space', '<p><span style="white-space: pre">  </span></p>'],
+    ['white-space on the paragraph', '<p style="white-space: pre-wrap"> </p>'],
+    ['a tag with a height', '<p><span style="display: inline-block; height: 20px"></span></p>'],
+    ['a min-height on the paragraph', '<p style="min-height: 1em"></p>'],
+    ['padding', '<p><span style="padding: 4px"></span></p>'],
+    ['a border', '<p style="border: 1px solid"></p>'],
+    // clement-7074f29f, review of #65: longhands and margins give a box too.
+    ['a padding longhand', '<p><span style="padding-left: 4px"></span></p>'],
+    ['a border longhand', '<p><span style="border-bottom: 1px solid"></span></p>'],
+    ['a margin on the paragraph', '<p style="margin-top: 20px"></p>'],
+    ['a margin on a tag', '<p><span style="margin-left: 4px"></span></p>'],
+    ['a tag not listed', '<p><img src="x"></p>'],
+    ['a zero-width character not removed before', '<p>​</p>'],
+  ])('is kept: %s', (_name, html) => {
+    expect(dropInvisibleParagraphs(html)).toBe(html);
+  });
+
+  it('goes when the paragraph inside it goes, as a browser parses nested paragraphs', () => {
+    expect(dropInvisibleParagraphs('<p>zq</p><p><span><p></p></span></p>')).toBe(
+      '<p>zq</p>'
+    );
+  });
+
+  it('is dropped by the converter at every frame, and the visible lines stay', () => {
+    const T0 = 1605903809127;
+    const contents = ['<p>zq</p><p></p>', '<p>zq</p><p></p><p><br></p><p> </p><p>xv</p>'];
+    const c = JSON.parse(
+      convertMidstFile(
+        JSON.stringify({
+          editorTimelineFrames: contents.map((content, i) => ({
+            content,
+            lineNumber: '0',
+            timestamp: T0 + i * 100,
+          })),
+        })
+      )
+    );
+    expect(c.history.map((_: unknown, i: number) => reconstruct('', c.history, i))).toEqual([
+      '<p>zq</p>',
+      '<p>zq</p><p></p><p>xv</p>',
+    ]);
+    expect(c.text).toBe('<p>zq</p><p></p><p>xv</p>');
+  });
+
+  // The selection marker goes first, so a paragraph that held only a marker drew nothing and goes too.
+  it('drops a paragraph that held only a selection marker', () => {
+    const RANGY =
+      '<span class="rangySelectionBoundary" style="line-height: 0; display: none;">&#xFEFF;</span>';
+    const c = JSON.parse(
+      convertMidstFile(
+        JSON.stringify({
+          editorTimelineFrames: [
+            { content: `<p>zq</p><p>${RANGY}</p><p>xv</p>`, lineNumber: '0', timestamp: 1 },
+          ],
+        })
+      )
+    );
+    expect(c.text).toBe('<p>zq</p><p>xv</p>');
   });
 });

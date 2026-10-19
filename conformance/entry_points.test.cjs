@@ -11,7 +11,7 @@ let empty;
 let notZip;
 let tmp;
 // Stand-in source directories for provenance.cjs --src: extensions.ts with the schema block, and convert.ts with the
-// trailing-<br> rule and the zero-width declarations, built from the harness's own normalise.cjs so the 'same'
+// trailing-<br> rule, the zero-width declarations and the invisible-paragraph ones (midst-editor #169), built from the harness's own normalise.cjs so the 'same'
 // directory matches it exactly.
 const srcTree = (name, schema, zeroWidth = (u) => u) => {
   const root = path.join(tmp, name, 'src');
@@ -21,12 +21,15 @@ const srcTree = (name, schema, zeroWidth = (u) => u) => {
   // The zero-width declarations, from ZERO_WIDTH_CHARS to the end of ZERO_WIDTH_ONLY_ELEMENT.
   const from = mine.indexOf('const ZERO_WIDTH_CHARS =');
   const to = mine.indexOf(');\n', mine.indexOf('const ZERO_WIDTH_ONLY_ELEMENT =')) + 3;
-  fs.writeFileSync(path.join(root, 'convert.ts'), zeroWidth(`${rule}\n${mine.slice(from, to)}`));
+  // The invisible-paragraph declarations, from INLINE_TAGS to the end of INVISIBLE_PARAGRAPH.
+  const pFrom = mine.indexOf('const INLINE_TAGS =');
+  const pTo = mine.indexOf(');\n', mine.indexOf('const INVISIBLE_PARAGRAPH =')) + 3;
+  fs.writeFileSync(path.join(root, 'convert.ts'), zeroWidth(`${rule}\n${mine.slice(from, to)}\n${mine.slice(pFrom, pTo)}`));
   fs.writeFileSync(path.join(root, 'extensions.ts'), schema(mine.slice(mine.indexOf('const extensions = ['), mine.indexOf('];', mine.indexOf('const extensions = [')) + 2)));
   return root;
 };
 const same = (block) => block.replace('const extensions = [', 'const poemExtensions = [');
-let srcSame, srcFlipped, srcNoBlock, srcZeroWidth, srcMissing;
+let srcSame, srcFlipped, srcNoBlock, srcZeroWidth, srcInvisible, srcMissing;
 beforeAll(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-entry-'));
   empty = path.join(tmp, 'empty');
@@ -38,6 +41,8 @@ beforeAll(() => {
   srcNoBlock = srcTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
   // The zero-width set without U+2060: the harness would no longer mirror the converter.
   srcZeroWidth = srcTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));
+  // The invisible-paragraph rule without <sub>: likewise.
+  srcInvisible = srcTree('invisible', same, (u) => u.replace('|font|sup|sub', '|font|sup'));
   srcMissing = path.join(tmp, 'no-such-src');
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -70,6 +75,7 @@ const CASES = [
   ['provenance: an option flipped', 'provenance.cjs', ['--src', () => srcFlipped], () => ({}), ['provenance-mismatch'], 1, true],
   ['provenance: no schema block', 'provenance.cjs', ['--src', () => srcNoBlock], () => ({}), ['provenance-mismatch'], 1, true],
   ['provenance: the zero-width rule differs', 'provenance.cjs', ['--src', () => srcZeroWidth], () => ({}), ['provenance-mismatch'], 1, true],
+  ['provenance: the invisible-paragraph rule differs', 'provenance.cjs', ['--src', () => srcInvisible], () => ({}), ['provenance-mismatch'], 1, true],
   ['provenance: a source directory that does not exist', 'provenance.cjs', ['--src', () => srcMissing], () => ({}), ['harness-error'], 2, false],
 ];
 
@@ -106,6 +112,7 @@ test.each([
   ['an option flipped', () => srcFlipped, { stage: 'options', count: 2 }],
   ['no schema block', () => srcNoBlock, { stage: 'block-not-found' }],
   ['the zero-width rule differs', () => srcZeroWidth, { stage: 'zero-width' }],
+  ['the invisible-paragraph rule differs', () => srcInvisible, { stage: 'invisible-paragraph' }],
 ])('provenance: %s is logged with its stage', (_name, dir, fields) => {
   const r = run('provenance.cjs', ['--src', dir()], {});
   const [rec] = r.stderr.trim().split('\n').map((l) => JSON.parse(l));

@@ -48,3 +48,9 @@ for (const name of ['ZERO_WIDTH_CHARS', 'ZERO_WIDTH_ENTITY_CODES', 'ZERO_WIDTH_E
   console.log(`${name} MATCH:`, !!u && u === h);
   if (!u || u !== h) mismatch('zero-width');
 }
+// The invisible-paragraph rule likewise (midst-editor #169).
+for (const name of ['INLINE_TAGS', 'NO_BOX_STYLE', 'INVISIBLE_PARAGRAPH']) {
+  const u = decl(src, name), h = decl(mine, name);
+  console.log(`${name} MATCH:`, !!u && u === h);
+  if (!u || u !== h) mismatch('invisible-paragraph');
+}

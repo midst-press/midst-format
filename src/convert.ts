@@ -49,19 +49,53 @@ const schema = getSchema(poemExtensions);
 // content: the nearest position the old record supports. Advisory, as every pos is (README, "Replaying
 // format C"). A line past the last block names the last; with no usable line (negative, not a number) or no
 // block, it is 0, the start of the document.
-const endOfLine = (
+const endOfBlock = (
   doc: ReturnType<typeof schema.nodeFromJSON>,
-  lineNumber: string
+  index: number
 ): number => {
-  const line = Number(lineNumber);
-  const blocks =
-    Number.isFinite(line) && line >= 0
-      ? Math.min(doc.childCount, Math.floor(line) + 1)
-      : 0;
+  const blocks = index >= 0 ? Math.min(doc.childCount, index + 1) : 0;
   let size = 0;
   for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
   // The end of the last block's content is one before its closing token.
   return blocks === 0 ? 0 : size - 1;
+};
+
+// Parse as the editor does (Editor and Replay use preserveWhitespace: true).
+// The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
+const frameJSON = (html: string) =>
+  generateJSON(dropTrailingBreaks(html), poemExtensions, {
+    preserveWhitespace: true,
+  });
+
+// The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
+// document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
+// itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
+// against the frame's blocks as the old player had them. The selection markers are already gone, and were never
+// counted: the old editor's lineNumber is the data-line-number of the <p> holding the selection, numbered over the
+// editor's <p> elements (reflowLineNumbers and captureTimelineFrame in the old player's source, kept in midst-web as
+// e2e/legacy-player/Midst.ts), and a marker is a <span>. Returns the block index in the converted
+// document, or -1 for none.
+const keptBlock = (source: string, lineNumber: string): number => {
+  const line = Number(lineNumber);
+  if (!Number.isFinite(line) || line < 0) return -1;
+  if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
+  // A private-use character, lengthened until neither the frame nor its text (character references decoded)
+  // contains it, so every block that reads as the mark is a <p>mark</p> this function put there.
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
+  let mark = '\uE000';
+  while (source.includes(mark) || text.includes(mark)) mark += '\uE000';
+  const marked = markInvisibleParagraphs(source, mark);
+  const before = schema.nodeFromJSON(frameJSON(marked));
+  // The kept blocks are the converted document's, in order. That holds because a block reads as the mark only if it
+  // is one of the <p>mark</p> put here (the mark is in neither the frame nor its decoded text), and the parse keeps
+  // each of those a block of its own. It did in 17 nested and container shapes (a <p> inside a <p>, an inline tag, a
+  // div, li, blockquote, td, pre or h1) and in every frame of the 54 archive poems, converted at 26b83c9 with a check
+  // that threw on any difference in the count (midst-format #65).
+  const last = Math.min(before.childCount, Math.floor(line) + 1);
+  let kept = 0;
+  for (let i = 0; i < last; i += 1)
+    if (before.child(i).textContent !== mark) kept += 1;
+  return kept - 1;
 };
 
 // A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
@@ -102,6 +136,36 @@ export const dropZeroWidthOnlyElements = (html: string) => {
   }
   return current;
 };
+
+// A paragraph that draws nothing in the old player: no text, no <br>, no no-break space, no tab, only collapsible
+// whitespace (space, newline) and inline tags with nothing in them. The old player's only paragraph rule is
+// `.editor .editable p { margin: 0; padding: 0; }` (midst-web's seed, midst-player-hack/style.css): no minimum
+// height and no white-space, so such a paragraph is zero height and the poet never saw it as a line. ProseMirror
+// draws every paragraph, so each became a blank line (midst-editor #169). A tag whose own style could give it a
+// box or keep its whitespace (white-space, display, height, min-height, margin, padding or border, longhands such as
+// padding-left or margin-top included) is never matched, and nor is anything not listed here: such a paragraph is
+// kept, as before. Runs before dropTrailingBreaks, which turns the
+// visible <p><br></p> into <p></p>. Repeats, so a paragraph emptied by the removal of one inside it goes too.
+const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
+const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\\w-]*\\s*:)`;
+const INVISIBLE_PARAGRAPH = new RegExp(
+  `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
+  'gi'
+);
+const replaceInvisibleParagraphs = (html: string, by: string) => {
+  let current = html;
+  let next = current.replace(INVISIBLE_PARAGRAPH, by);
+  while (next !== current) {
+    current = next;
+    next = current.replace(INVISIBLE_PARAGRAPH, by);
+  }
+  return current;
+};
+export const dropInvisibleParagraphs = (html: string) =>
+  replaceInvisibleParagraphs(html, '');
+// The same paragraphs, each replaced by <p>mark</p> instead of removed, for mapping a recorded line.
+const markInvisibleParagraphs = (html: string, mark: string) =>
+  replaceInvisibleParagraphs(html, `<p>${mark}</p>`);
 
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
@@ -156,20 +220,11 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
-    // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
-    const jsonContentAtFrame = generateJSON(
-      dropTrailingBreaks(dropZeroWidthOnlyElements(el.content)),
-      poemExtensions,
-      {
-        preserveWhitespace: true,
-      }
-    );
+    const source = dropZeroWidthOnlyElements(el.content);
+    const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
-    const position = endOfLine(
-      schema.nodeFromJSON(jsonContentAtFrame),
-      el.lineNumber
-    );
+    const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
 
     return {
       content: htmlContentAtFrame,

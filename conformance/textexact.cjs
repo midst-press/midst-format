@@ -28,6 +28,22 @@ const dropUndrawnElements = (html) => {
   }
   return current;
 };
+// A paragraph with nothing a browser draws (no <br>, no text after entities are decoded, only collapsible spaces and
+// newlines, nothing under a white-space that keeps them) has no height in the old player, so it is no line
+// (midst-editor #169). Written here independently of the converter, as browser semantics: decoded text, not a regex
+// over tags.
+const undrawnParagraph = (inner) =>
+  !/<br\b/i.test(inner) && !/white-space\s*:/i.test(inner) && /^[ \n\r\f]*$/.test(decode(inner.replace(/<[^>]*>/g, '')));
+const dropUndrawnParagraphs = (html) => {
+  let current = html;
+  for (;;) {
+    const next = current.replace(/<p\b([^>]*)>((?:(?!<\/?p\b)[\s\S])*)<\/p>/gi, (m, attrs, inner) =>
+      !/white-space\s*:/i.test(attrs) && undrawnParagraph(inner) ? '' : m,
+    );
+    if (next === current) return current;
+    current = next;
+  }
+};
 // Inline content after a closed block is a line box of its own, as a browser draws it (midst-format #13): <p>a</p>x
 // is two lines, a and x, and <p>a</p><br>x is three (the <br> ends an empty one). So a run of it, up to the next
 // block, reads as its own paragraph, and the rules below then apply to it unchanged: a lone <br> there is still one
@@ -36,7 +52,7 @@ const wrapLooseRuns = (html) =>
   html.replace(/(<\/(?:p|div)>)((?:(?!<\/?(?:p|div)\b)[\s\S])+)/gi, (m, close, run) => (/\S/.test(run) ? `${close}<p>${run}</p>` : m));
 const textOf = (html, { editor = false } = {}) =>
   decode(
-    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnElements(html))))
+    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnParagraphs(dropUndrawnElements(html)))))
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
