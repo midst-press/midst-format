@@ -98,7 +98,7 @@ To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, and the rules
     npm run trajectory -- <poem.midst.zip>   # one archive's frame-by-frame replay, printed; needs the harness
     npm run conformance:coverage   # how much of src/convert.ts the corpus runs; numbers only
     npm run conformance    # the real corpus. Requires MIDST_CORPUS to point at it. Never in public CI.
-    npm run conformance -- --known FILE   # the same, with expected failures by index (verify_lib.cjs, #72)
+    npm run conformance -- --known conformance/verify_all.known.json   # the same, with the archive's expected failures (#72)
 
 **`--known FILE` is a ratchet.** It lists the failures expected of the corpus, each by its index with its
 frame count and its `badFrames` and `textBad` counts. A poem failing exactly so passes as known. Anything else
