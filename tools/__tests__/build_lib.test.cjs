@@ -93,7 +93,13 @@ describe("the built library", () => {
   });
 
   it("has a directory per entry point with its own manifest, and no source maps", () => {
-    for (const name of ["history", "extensions", "convert"]) {
+    for (const name of [
+      "history",
+      "extensions",
+      "convert",
+      "follow",
+      "build-label",
+    ]) {
       const files = fs.readdirSync(path.join(dist, name)).sort();
       expect(files).toEqual([
         "index.cjs",
@@ -138,6 +144,25 @@ describe("the built library", () => {
       "./history",
       "./extensions",
       "./convert",
+      "./follow",
+      "./build-label",
     ]);
+  });
+
+  // The player helpers came from the editor importing nothing, and the build must not give them anything.
+  it("builds follow and build-label with no imports, and the CommonJS build-label runs", () => {
+    for (const name of ["follow", "build-label"]) {
+      expect(
+        fs.readFileSync(path.join(dist, name, "index.cjs"), "utf8"),
+      ).not.toMatch(/require\(/);
+      expect(
+        fs.readFileSync(path.join(dist, name, "index.mjs"), "utf8"),
+      ).not.toMatch(/^import /m);
+    }
+    const { buildLabel, isPreRelease } = require(
+      path.join(dist, "build-label", "index.cjs"),
+    );
+    expect(buildLabel({})).toBe("Development build");
+    expect(isPreRelease("v1.0.0")).toBe(false);
   });
 });

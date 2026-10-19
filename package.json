@@ -1,7 +1,7 @@
 {
   "name": "@midst-press/midst-format",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "The .midst file format: spec, converters between generations, and the conformance suite.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
@@ -34,6 +34,7 @@
     "c8": "12.0.0",
     "esbuild": "0.28.2",
     "jest": "30.5.2",
+    "jest-environment-jsdom": "30.5.2",
     "playwright": "1.64.0",
     "prettier": "3.9.10",
     "ts-jest": "29.4.14",

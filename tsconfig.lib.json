@@ -11,5 +11,11 @@
     "rootDir": "src",
     "types": []
   },
-  "include": ["src/history.ts", "src/extensions.ts", "src/convert.ts"]
+  "include": [
+    "src/history.ts",
+    "src/extensions.ts",
+    "src/convert.ts",
+    "src/follow.ts",
+    "src/buildLabel.ts"
+  ]
 }

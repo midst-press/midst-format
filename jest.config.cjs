@@ -19,6 +19,21 @@ const libraryTests = {
   displayName: "library",
   testEnvironment: "node",
   testMatch: ["<rootDir>/src/__tests__/*.test.ts"],
+  // The player helpers' tests run in a browser's environment, as they did in the editor (below).
+  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/src/__tests__/follow"],
+  transform: {
+    "\\.ts$": ["ts-jest", { tsconfig: "<rootDir>/tsconfig.test.json" }],
+  },
+  modulePathIgnorePatterns: ["<rootDir>/dist/"],
+};
+
+// follow.ts reads `document.hidden`, and the editor runs every test under jsdom, so its tests (midst-web #194,
+// docs/LIBRARY.md) do too. They are ported unchanged but for the import path.
+const playerTests = {
+  displayName: "library (jsdom)",
+  testEnvironment: "jsdom",
+  testEnvironmentOptions: { url: "http://localhost/" },
+  testMatch: ["<rootDir>/src/__tests__/follow*.test.ts"],
   transform: {
     "\\.ts$": ["ts-jest", { tsconfig: "<rootDir>/tsconfig.test.json" }],
   },
@@ -26,7 +41,7 @@ const libraryTests = {
 };
 
 module.exports = {
-  projects: [selfTests, libraryTests],
+  projects: [selfTests, libraryTests, playerTests],
   coverageProvider: "v8",
   // The error log's allowlist is what keeps poem text out of stderr, so every line of it is covered (#38). src/ is
   // measured and reported, with no threshold yet.

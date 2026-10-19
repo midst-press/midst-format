@@ -5,7 +5,11 @@ const fs = require("fs"),
   os = require("os"),
   path = require("path");
 const { execFileSync } = require("child_process");
-const { checkConsumer } = require("../consumer-ts46.cjs");
+const {
+  checkConsumer,
+  consumerSource,
+  SUBPATHS,
+} = require("../consumer-ts46.cjs");
 
 const root = path.join(__dirname, "..", "..");
 let tmp, dist;
@@ -28,6 +32,22 @@ describe("the TypeScript 4.6 consumer check", () => {
     expect(r.ok).toBe(true);
   }, 120000);
 
+  it("imports every entry point of the build, the player helpers included", () => {
+    const imports = consumerSource(dist)
+      .split("\n")
+      .filter((l) => l.startsWith("import "));
+    expect(imports).toHaveLength(
+      Object.keys(
+        JSON.parse(fs.readFileSync(path.join(dist, "package.json"), "utf8"))
+          .exports,
+      ).length,
+    );
+    expect(imports.join("\n")).toContain("@midst-press/midst-format/follow");
+    expect(imports.join("\n")).toContain(
+      "@midst-press/midst-format/build-label",
+    );
+  });
+
   it("fails when a subpath resolves only through `exports`", () => {
     const r = checkConsumer(dist, {
       mutate: (pkg) => {
@@ -37,7 +57,7 @@ describe("the TypeScript 4.6 consumer check", () => {
         const manifest = JSON.parse(
           fs.readFileSync(path.join(pkg, "package.json"), "utf8"),
         );
-        for (const name of ["history", "extensions", "convert"]) {
+        for (const name of SUBPATHS) {
           fs.renameSync(path.join(pkg, name), path.join(pkg, "lib", name));
           for (const cond of Object.keys(manifest.exports[`./${name}`])) {
             manifest.exports[`./${name}`][cond] = manifest.exports[`./${name}`][
