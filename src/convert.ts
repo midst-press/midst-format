@@ -70,8 +70,10 @@ const frameJSON = (html: string) =>
 // The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
 // document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
 // itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
-// against the frame's blocks as the old player had them. The selection markers are already gone: Rangy inserts them
-// for a selection, so they are not lines the cursor's line counted. Returns the block index in the converted
+// against the frame's blocks as the old player had them. The selection markers are already gone, and were never
+// counted: the old editor's lineNumber is the data-line-number of the <p> holding the selection, numbered over the
+// editor's <p> elements (reflowLineNumbers and captureTimelineFrame in the old player's source, kept in midst-web as
+// e2e/legacy-player/Midst.ts), and a marker is a <span>. Returns the block index in the converted
 // document, or -1 for none.
 const keptBlock = (source: string, lineNumber: string): number => {
   const line = Number(lineNumber);
