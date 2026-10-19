@@ -1,6 +1,6 @@
 /* eslint import/prefer-default-export: off */
 import { generateJSON, generateHTML } from '@tiptap/html';
-import { JSONContent } from '@tiptap/core';
+import { getSchema } from '@tiptap/core';
 import { compareStrings } from './history';
 import poemExtensions from './extensions';
 
@@ -41,25 +41,61 @@ export const fileVersionMatchesCurrent = (data: string) => {
   return CURRENT_VERSION_LIST.includes(firstVersion);
 };
 
-const getTextLengthFromJSONContent = (doc: JSONContent): number => {
-  // count all the characters (hard breaks are two)
-  // each is a line of text or hardbreak
-  // then that text count is actually the position
-  if (doc.type === 'text') {
-    return doc.text?.length || 0;
-  }
-  if (doc.type === 'hardBreak') {
-    return 2;
-  }
-  if (doc.type === 'paragraph' || doc.type === 'doc') {
-    const contents = doc.content || [];
-    const lengths: number[] = contents.map((item) => {
-      return getTextLengthFromJSONContent(item);
-    });
-    const amount = lengths.reduce((partialSum, a) => partialSum + a, 1);
-    return amount;
-  }
-  return 0;
+// The schema the editor builds from the same extensions, so a position here is the editor's position.
+const schema = getSchema(poemExtensions);
+
+// A history entry's pos is a ProseMirror position in the document after the change (#36). An old file records
+// only the cursor's line, as an index into the frame's blocks, so a converted pos is the end of that block's
+// content: the nearest position the old record supports. Advisory, as every pos is (README, "Replaying
+// format C"). A line past the last block names the last; with no usable line (negative, not a number) or no
+// block, it is 0, the start of the document.
+const endOfBlock = (
+  doc: ReturnType<typeof schema.nodeFromJSON>,
+  index: number
+): number => {
+  const blocks = index >= 0 ? Math.min(doc.childCount, index + 1) : 0;
+  let size = 0;
+  for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
+  // The end of the last block's content is one before its closing token.
+  return blocks === 0 ? 0 : size - 1;
+};
+
+// Parse as the editor does (Editor and Replay use preserveWhitespace: true).
+// The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
+const frameJSON = (html: string) =>
+  generateJSON(dropTrailingBreaks(html), poemExtensions, {
+    preserveWhitespace: true,
+  });
+
+// The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
+// document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
+// itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
+// against the frame's blocks as the old player had them. The selection markers are already gone, and were never
+// counted: the old editor's lineNumber is the data-line-number of the <p> holding the selection, numbered over the
+// editor's <p> elements (reflowLineNumbers and captureTimelineFrame in the old player's source, kept in midst-web as
+// e2e/legacy-player/Midst.ts), and a marker is a <span>. Returns the block index in the converted
+// document, or -1 for none.
+const keptBlock = (source: string, lineNumber: string): number => {
+  const line = Number(lineNumber);
+  if (!Number.isFinite(line) || line < 0) return -1;
+  if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
+  // A private-use character, lengthened until neither the frame nor its text (character references decoded)
+  // contains it, so every block that reads as the mark is a <p>mark</p> this function put there.
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
+  let mark = '\uE000';
+  while (source.includes(mark) || text.includes(mark)) mark += '\uE000';
+  const marked = markInvisibleParagraphs(source, mark);
+  const before = schema.nodeFromJSON(frameJSON(marked));
+  // The kept blocks are the converted document's, in order. That holds because a block reads as the mark only if it
+  // is one of the <p>mark</p> put here (the mark is in neither the frame nor its decoded text), and the parse keeps
+  // each of those a block of its own. It did in 17 nested and container shapes (a <p> inside a <p>, an inline tag, a
+  // div, li, blockquote, td, pre or h1) and in every frame of the 54 archive poems, converted at 26b83c9 with a check
+  // that threw on any difference in the count (midst-format #65).
+  const last = Math.min(before.childCount, Math.floor(line) + 1);
+  let kept = 0;
+  for (let i = 0; i < last; i += 1)
+    if (before.child(i).textContent !== mark) kept += 1;
+  return kept - 1;
 };
 
 // A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
@@ -118,15 +154,20 @@ const INVISIBLE_PARAGRAPH = new RegExp(
   `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
   'gi'
 );
-export const dropInvisibleParagraphs = (html: string) => {
+const replaceInvisibleParagraphs = (html: string, by: string) => {
   let current = html;
-  let next = current.replace(INVISIBLE_PARAGRAPH, '');
+  let next = current.replace(INVISIBLE_PARAGRAPH, by);
   while (next !== current) {
     current = next;
-    next = current.replace(INVISIBLE_PARAGRAPH, '');
+    next = current.replace(INVISIBLE_PARAGRAPH, by);
   }
   return current;
 };
+export const dropInvisibleParagraphs = (html: string) =>
+  replaceInvisibleParagraphs(html, '');
+// The same paragraphs, each replaced by <p>mark</p> instead of removed, for mapping a recorded line.
+const markInvisibleParagraphs = (html: string, mark: string) =>
+  replaceInvisibleParagraphs(html, `<p>${mark}</p>`);
 
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
@@ -181,24 +222,11 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
-    // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
-    const jsonContentAtFrame = generateJSON(
-      dropTrailingBreaks(
-        dropInvisibleParagraphs(dropZeroWidthOnlyElements(el.content))
-      ),
-      poemExtensions,
-      {
-        preserveWhitespace: true,
-      }
-    );
+    const source = dropZeroWidthOnlyElements(el.content);
+    const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
-    // get the slice of the content before the line number
-    const truncatedJsonContentAtFrame = {
-      ...jsonContentAtFrame,
-      content: jsonContentAtFrame.content.slice(0, Number(el.lineNumber) + 1),
-    };
-    const position = getTextLengthFromJSONContent(truncatedJsonContentAtFrame);
+    const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
 
     return {
       content: htmlContentAtFrame,
