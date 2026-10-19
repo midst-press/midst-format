@@ -44,7 +44,7 @@ const dropZeroWidthOnlyElements = (html) => {
 // The invisible-paragraph rule mirrors convert.ts (midst-editor #169; provenance.cjs asserts the declarations are
 // identical): a paragraph with nothing a browser draws had no height in the old player, so it is not a line.
 const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
-const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|padding|border)\\s*:)`;
+const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\\w-]*\\s*:)`;
 const INVISIBLE_PARAGRAPH = new RegExp(
   `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
   'gi'

@@ -106,11 +106,12 @@ export const dropZeroWidthOnlyElements = (html: string) => {
 // `.editor .editable p { margin: 0; padding: 0; }` (midst-web's seed, midst-player-hack/style.css): no minimum
 // height and no white-space, so such a paragraph is zero height and the poet never saw it as a line. ProseMirror
 // draws every paragraph, so each became a blank line (midst-editor #169). A tag whose own style could give it a
-// box or keep its whitespace (white-space, display, height, min-height, padding, border) is never matched, and nor is
-// anything not listed here: such a paragraph is kept, as before. Runs before dropTrailingBreaks, which turns the
+// box or keep its whitespace (white-space, display, height, min-height, margin, padding or border, longhands such as
+// padding-left or margin-top included) is never matched, and nor is anything not listed here: such a paragraph is
+// kept, as before. Runs before dropTrailingBreaks, which turns the
 // visible <p><br></p> into <p></p>. Repeats, so a paragraph emptied by the removal of one inside it goes too.
 const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
-const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|padding|border)\\s*:)`;
+const NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\\w-]*\\s*:)`;
 const INVISIBLE_PARAGRAPH = new RegExp(
   `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
   'gi'

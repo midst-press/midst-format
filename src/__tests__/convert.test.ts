@@ -368,6 +368,11 @@ describe('a paragraph that drew nothing', () => {
     ['a min-height on the paragraph', '<p style="min-height: 1em"></p>'],
     ['padding', '<p><span style="padding: 4px"></span></p>'],
     ['a border', '<p style="border: 1px solid"></p>'],
+    // clement-7074f29f, review of #65: longhands and margins give a box too.
+    ['a padding longhand', '<p><span style="padding-left: 4px"></span></p>'],
+    ['a border longhand', '<p><span style="border-bottom: 1px solid"></span></p>'],
+    ['a margin on the paragraph', '<p style="margin-top: 20px"></p>'],
+    ['a margin on a tag', '<p><span style="margin-left: 4px"></span></p>'],
     ['a tag not listed', '<p><img src="x"></p>'],
     ['a zero-width character not removed before', '<p>​</p>'],
   ])('is kept: %s', (_name, html) => {
