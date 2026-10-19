@@ -28,7 +28,8 @@ format (model 1.25.12), and so does TypeScript (editor 5.5.3, web 4.6.3).
 
 ## What the library holds
 
-The pure code only. Nothing that touches Electron, the store, the file system or the DOM.
+The pure code only. Nothing that touches Electron, the store or the file system. Only `follow` touches the DOM:
+it scrolls the element it is given; see _The player helpers_ below.
 
 | Entry point                            | Contents                                                                                                                                                                                            | Depends on                                                         |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -153,6 +154,58 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 | The vendored copy and its hashes are edited together                            | the CI job that rebuilds the tag and compares                                                                                   |
 | Web and editor resolve different `prosemirror-*` under TipTap 2.5.4             | not caught today, and already true: the same config can parse differently. Out of scope; noted for #9                           |
 | A subpath or `.d.ts` that web's TypeScript 4.6 or Parcel cannot resolve or read | the stage 1 TypeScript 4.6 consumer check (`moduleResolution: "node"`, each subpath imported); web's `tsc` and build in stage 3 |
+
+## The player helpers: `follow` and `build-label` (midst-web #194)
+
+Stuart, 18 Oct (#50 decision 2): the website's copies of the editor's `follow.ts` and `buildLabel.ts` move
+into a vendored package after this library settles. Violet, 19 Oct: they become two more entry points here,
+and the website keeps its own copy of the guide.
+
+**Why.** Web's `editor-helpers-identical` check reads the editor repository at a pinned commit, so a web
+push-up needs a local editor clone (`MIDST_EDITOR_ROOT`) and needs that pin already on GitHub's editor main.
+That ordering broke the web push-up on 16 Oct (midst-infra #90). Vendored files are carried in each app, so
+web stops reading the editor at all, and the trap goes away.
+
+**What moves.** Measured at editor `baf4661`:
+
+| Entry point                             | From the editor                                        | Imported there by                                     |
+| --------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| `@midst-press/midst-format/follow`      | `src/renderer/components/Replay/follow.ts` (147 lines) | `Replay/index.tsx`, `Replay/usePlayback.ts`           |
+| `@midst-press/midst-format/build-label` | `src/shared/buildLabel.ts` (52 lines)                  | `main/about.ts`, `shared/helpUrl.ts` (`isPreRelease`) |
+
+Neither file imports anything. `follow` is the scroll engine: it walks `parentElement` reading
+`scrollHeight`, `clientHeight` and `getComputedStyle`, writes `scrollTop` from `requestAnimationFrame` with
+`performance.now()`, and checks `document.hidden`. `tsconfig.lib.json` sets no `lib`, and TypeScript's
+default for `es2019` already includes the DOM types, so it needs only the two files added to `include`.
+`buildLabel` and the other entry points still touch no DOM. Their tests (`follow.test.ts`,
+`followMore.test.ts`, `buildLabel.test.ts`) move with them, as #50 stage 1 moved the library's.
+
+**The guide is not in it.** The editor's `docs/user-guide.md` is the third file web's check holds. Web stops
+holding it to the editor's copy and keeps its own (`src/guide/editor-user-guide.md`). Under the message-catalog
+design (midst-infra `docs/design/message-catalog.md`) it becomes `locales/en/docs/user-guide.md`, which
+Annelyse owns, so any difference from the editor's is hers to settle, not a check's.
+
+**Stages, one PR each, the order one way as for #50.**
+
+1. **This note.**
+2. **Format: the two files, moved verbatim** from editor main at a named commit (imports aside; they have
+   none), with their tests ported. `src/MOVED_FROM.json` records the commit. Both entry points go into the
+   build, the TypeScript 4.6 consumer check, the reproducible-build check and `exports`, laid out as
+   directories like the other three. A verbatim check against the named commit is run in the PR and
+   recorded there. Then a tag. **Version:** new entry points are a minor version. If the #169/#15/#36 fixes
+   (stage 5 above) have taken `v0.3.0` by then, this is `v0.4.0`, and the other way round.
+3. **Editor: vendor the tag; import both** from the package. Delete `Replay/follow.ts` and
+   `shared/buildLabel.ts` and their tests, which now live in format. Its Replay and about tests are the
+   parity check and run unchanged.
+4. **Web: vendor the tag; import both** in place of `src/components/MidstPlayer/follow.ts` and
+   `src/buildLabel.ts`. Delete those copies and the three `editor-*.test.ts` copies. Retire
+   `check-editor-helpers.mjs`, its test, `tools/editor-copies-pin` and the `editor-helpers-identical` hook,
+   and keep the guide as web's own file. Web's own tests run unchanged against the import.
+5. **Infra: retire `MIDST_EDITOR_ROOT`** in the web push-up launcher, and midst-infra #90's guard, once
+   stage 4 has merged.
+
+Wording stays exactly as it is (Violet, 19 Oct). The words in `buildLabel` move to the catalog later, with
+the rest of each app's text.
 
 ## Decisions for Stuart
 
