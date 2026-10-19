@@ -174,7 +174,7 @@ describe('converting an old file', () => {
 
     it('is the end of the line, in ProseMirror positions', () => {
       expect(pos('<p>zq</p>', '0')).toBe(3);
-      expect(pos('<p></p>', '0')).toBe(1);
+      expect(pos('<p><br></p>', '0')).toBe(1);
     });
 
     it('is the end of the line being written, past the lines before it', () => {
@@ -203,7 +203,7 @@ describe('converting an old file', () => {
     // The end of a block's content is where a cursor typing at the end of that line sits.
     it('is a position in the converted document that ends a block', () => {
       const schema = getSchema(poemExtensions);
-      const content = '<p>zq</p><p>x<em>v</em><br>kj</p><p></p>';
+      const content = '<p>zq</p><p>x<em>v</em><br>kj</p><p>z</p>';
       const doc = schema.nodeFromJSON(
         generateJSON(content, poemExtensions, { preserveWhitespace: true })
       );
@@ -213,6 +213,44 @@ describe('converting an old file', () => {
         expect(at.parentOffset).toBe(at.parent.content.size);
         expect(at.index(0)).toBe(Number(line));
       });
+    });
+
+    // The recorded line counts the paragraphs the old player drew nothing for, which the converted document
+    // drops (midst-editor #169), so the line is mapped through the drop.
+    it('is the end of the same line when a paragraph before it was dropped', () => {
+      expect(pos('<p>zq</p><p></p><p>xv</p>', '0')).toBe(3);
+      // A line after the one written, so the end of the document is not also the right answer.
+      expect(pos('<p>zq</p><p></p><p>xv</p><p>kj</p>', '2')).toBe(7);
+      expect(pos('<p></p><p> </p><p>zq</p><p>xv</p>', '2')).toBe(3);
+    });
+
+    it('is the end of the line before when the recorded line itself was dropped', () => {
+      expect(pos('<p>zq</p><p></p><p>xv</p>', '1')).toBe(3);
+      expect(pos('<p>zq</p><p><em></em></p><p></p><p>xv</p>', '2')).toBe(3);
+    });
+
+    it('is the start of the document when no line at or before it was kept', () => {
+      expect(pos('<p></p><p>zq</p>', '0')).toBe(0);
+      expect(pos('<p></p><p>zq</p>', '1')).toBe(3);
+      expect(pos('<p></p>', '0')).toBe(0);
+    });
+
+    it('maps the line when the frame already holds the mark character', () => {
+      expect(pos('<p>\uE000</p><p></p><p>zq</p>', '2')).toBe(6);
+    });
+
+    it('throws rather than miscount when a kept line reads as the mark', () => {
+      expect(() => pos('<p>&#xE000;</p><p></p>', '0')).toThrow(
+        '1 dropped paragraphs marked but 2 found'
+      );
+    });
+
+    it('is the end of the last kept line for a line past the end', () => {
+      expect(pos('<p>zq</p><p></p>', '5')).toBe(3);
+    });
+
+    it('does not count a visible blank line as dropped', () => {
+      expect(pos('<p>zq</p><p><br></p><p>xv</p>', '2')).toBe(9);
     });
   });
 });

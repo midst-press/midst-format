@@ -49,19 +49,55 @@ const schema = getSchema(poemExtensions);
 // content: the nearest position the old record supports. Advisory, as every pos is (README, "Replaying
 // format C"). A line past the last block names the last; with no usable line (negative, not a number) or no
 // block, it is 0, the start of the document.
-const endOfLine = (
+const endOfBlock = (
   doc: ReturnType<typeof schema.nodeFromJSON>,
-  lineNumber: string
+  index: number
 ): number => {
-  const line = Number(lineNumber);
-  const blocks =
-    Number.isFinite(line) && line >= 0
-      ? Math.min(doc.childCount, Math.floor(line) + 1)
-      : 0;
+  const blocks = index >= 0 ? Math.min(doc.childCount, index + 1) : 0;
   let size = 0;
   for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
   // The end of the last block's content is one before its closing token.
   return blocks === 0 ? 0 : size - 1;
+};
+
+// Parse as the editor does (Editor and Replay use preserveWhitespace: true).
+// The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
+const frameJSON = (html: string) =>
+  generateJSON(dropTrailingBreaks(html), poemExtensions, {
+    preserveWhitespace: true,
+  });
+
+// The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
+// document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
+// itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
+// against the frame's blocks as the old player had them. The selection markers are already gone: Rangy inserts them
+// for a selection, so they are not lines the cursor's line counted. Returns the block index in the converted
+// document, or -1 for none.
+const keptBlock = (source: string, lineNumber: string): number => {
+  const line = Number(lineNumber);
+  if (!Number.isFinite(line) || line < 0) return -1;
+  // A private-use character, lengthened until the frame does not contain it, so every <p>mark</p> in the marked
+  // frame is one this function put there.
+  let mark = '\uE000';
+  while (source.includes(mark)) mark += '\uE000';
+  const marked = markInvisibleParagraphs(source, mark);
+  if (marked === source) return Math.floor(line);
+  const inserted = marked.split(`<p>${mark}</p>`).length - 1;
+  const before = schema.nodeFromJSON(frameJSON(marked));
+  let found = 0;
+  for (let i = 0; i < before.childCount; i += 1)
+    if (before.child(i).textContent === mark) found += 1;
+  // A kept paragraph that reads as the mark (through a character reference), or a marker the parse merged or
+  // split, would shift the count, so say so rather than return the wrong line.
+  if (found !== inserted)
+    throw new Error(
+      `convert: ${inserted} dropped paragraphs marked but ${found} found in the frame's blocks`
+    );
+  const last = Math.min(before.childCount, Math.floor(line) + 1);
+  let kept = 0;
+  for (let i = 0; i < last; i += 1)
+    if (before.child(i).textContent !== mark) kept += 1;
+  return kept - 1;
 };
 
 // A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
@@ -118,15 +154,20 @@ const INVISIBLE_PARAGRAPH = new RegExp(
   `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
   'gi'
 );
-export const dropInvisibleParagraphs = (html: string) => {
+const replaceInvisibleParagraphs = (html: string, by: string) => {
   let current = html;
-  let next = current.replace(INVISIBLE_PARAGRAPH, '');
+  let next = current.replace(INVISIBLE_PARAGRAPH, by);
   while (next !== current) {
     current = next;
-    next = current.replace(INVISIBLE_PARAGRAPH, '');
+    next = current.replace(INVISIBLE_PARAGRAPH, by);
   }
   return current;
 };
+export const dropInvisibleParagraphs = (html: string) =>
+  replaceInvisibleParagraphs(html, '');
+// The same paragraphs, each replaced by <p>mark</p> instead of removed, for mapping a recorded line.
+const markInvisibleParagraphs = (html: string, mark: string) =>
+  replaceInvisibleParagraphs(html, `<p>${mark}</p>`);
 
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
@@ -181,22 +222,11 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
-    // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
-    const jsonContentAtFrame = generateJSON(
-      dropTrailingBreaks(
-        dropInvisibleParagraphs(dropZeroWidthOnlyElements(el.content))
-      ),
-      poemExtensions,
-      {
-        preserveWhitespace: true,
-      }
-    );
+    const source = dropZeroWidthOnlyElements(el.content);
+    const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
-    const position = endOfLine(
-      schema.nodeFromJSON(jsonContentAtFrame),
-      el.lineNumber
-    );
+    const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
 
     return {
       content: htmlContentAtFrame,

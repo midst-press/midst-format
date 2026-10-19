@@ -46,7 +46,8 @@ Each change is one contiguous replacement, located by how much of the previous s
 front and at the back. `pos` is where the cursor was after the change, as a ProseMirror position in the
 document after the change: the selection's anchor, for an edit made in the editor. A file converted from
 format B carries only what B recorded, the cursor's line, so its `pos` is the end of that line's block (0 when
-the line cannot be used). A reader must treat `pos` as advisory: nothing in the format checks it, and the
+the line cannot be used). A paragraph the old player drew nothing for is dropped in conversion, so the line names
+the last block kept at or before it. A reader must treat `pos` as advisory: nothing in the format checks it, and the
 editor's replay and the website's player follow the writing from the documents themselves (#36).
 
 ## The conformance suite, and why its shape matters
