@@ -1,6 +1,6 @@
 /* eslint import/prefer-default-export: off */
 import { generateJSON, generateHTML } from '@tiptap/html';
-import { JSONContent } from '@tiptap/core';
+import { getSchema } from '@tiptap/core';
 import { compareStrings } from './history';
 import poemExtensions from './extensions';
 
@@ -41,25 +41,27 @@ export const fileVersionMatchesCurrent = (data: string) => {
   return CURRENT_VERSION_LIST.includes(firstVersion);
 };
 
-const getTextLengthFromJSONContent = (doc: JSONContent): number => {
-  // count all the characters (hard breaks are two)
-  // each is a line of text or hardbreak
-  // then that text count is actually the position
-  if (doc.type === 'text') {
-    return doc.text?.length || 0;
-  }
-  if (doc.type === 'hardBreak') {
-    return 2;
-  }
-  if (doc.type === 'paragraph' || doc.type === 'doc') {
-    const contents = doc.content || [];
-    const lengths: number[] = contents.map((item) => {
-      return getTextLengthFromJSONContent(item);
-    });
-    const amount = lengths.reduce((partialSum, a) => partialSum + a, 1);
-    return amount;
-  }
-  return 0;
+// The schema the editor builds from the same extensions, so a position here is the editor's position.
+const schema = getSchema(poemExtensions);
+
+// A history entry's pos is a ProseMirror position in the document after the change (#36). An old file records
+// only the cursor's line, as an index into the frame's blocks, so a converted pos is the end of that block's
+// content: the nearest position the old record supports. Advisory, as every pos is (README, "Replaying
+// format C"). A line past the last block names the last; with no usable line (negative, not a number) or no
+// block, it is 0, the start of the document.
+const endOfLine = (
+  doc: ReturnType<typeof schema.nodeFromJSON>,
+  lineNumber: string
+): number => {
+  const line = Number(lineNumber);
+  const blocks =
+    Number.isFinite(line) && line >= 0
+      ? Math.min(doc.childCount, Math.floor(line) + 1)
+      : 0;
+  let size = 0;
+  for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
+  // The end of the last block's content is one before its closing token.
+  return blocks === 0 ? 0 : size - 1;
 };
 
 // A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
@@ -191,12 +193,10 @@ export const convertMidstFile = (oldMidst: string) => {
       }
     );
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
-    // get the slice of the content before the line number
-    const truncatedJsonContentAtFrame = {
-      ...jsonContentAtFrame,
-      content: jsonContentAtFrame.content.slice(0, Number(el.lineNumber) + 1),
-    };
-    const position = getTextLengthFromJSONContent(truncatedJsonContentAtFrame);
+    const position = endOfLine(
+      schema.nodeFromJSON(jsonContentAtFrame),
+      el.lineNumber
+    );
 
     return {
       content: htmlContentAtFrame,

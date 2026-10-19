@@ -1,5 +1,8 @@
 /** @jest-environment node */
+import { getSchema } from '@tiptap/core';
+import { generateJSON } from '@tiptap/html';
 import { reconstruct } from '../history';
+import poemExtensions from '../extensions';
 import {
   convertMidstFile,
   dropInvisibleParagraphs,
@@ -163,27 +166,53 @@ describe('converting an old file', () => {
     ]);
   });
 
+  // pos is a ProseMirror position in the document after the change (#36). An old frame records only its line,
+  // so the converted pos is the end of that line's block.
   describe('the cursor position of a frame', () => {
     const pos = (content: string, lineNumber: string) =>
       convert([{ content, lineNumber }]).history[0].pos;
 
-    it('counts one for the document, one per line, and each character', () => {
-      expect(pos('<p>zq</p>', '0')).toBe(4);
-      expect(pos('<p></p>', '0')).toBe(2);
+    it('is the end of the line, in ProseMirror positions', () => {
+      expect(pos('<p>zq</p>', '0')).toBe(3);
+      expect(pos('<p></p>', '0')).toBe(1);
     });
 
-    it('counts only the lines up to the one being written', () => {
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(4);
+    it('is the end of the line being written, past the lines before it', () => {
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(3);
       expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '1')).toBe(7);
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(10);
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(11);
     });
 
-    it('counts a line break inside a line as two', () => {
-      expect(pos('<p>zq<br>xv</p>', '0')).toBe(8);
+    it('counts a line break inside a line as one position', () => {
+      expect(pos('<p>zq<br>xv</p>', '0')).toBe(6);
     });
 
     it('counts formatted text by its characters, not its tags', () => {
-      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(5);
+      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(4);
+    });
+
+    it('is the end of the last line for a line past the end', () => {
+      expect(pos('<p>zq</p><p>xv</p>', '5')).toBe(7);
+    });
+
+    it('is the start of the document when the line cannot be used', () => {
+      expect(pos('<p>zq</p>', '-1')).toBe(0);
+      expect(pos('<p>zq</p>', 'zq')).toBe(0);
+    });
+
+    // The end of a block's content is where a cursor typing at the end of that line sits.
+    it('is a position in the converted document that ends a block', () => {
+      const schema = getSchema(poemExtensions);
+      const content = '<p>zq</p><p>x<em>v</em><br>kj</p><p></p>';
+      const doc = schema.nodeFromJSON(
+        generateJSON(content, poemExtensions, { preserveWhitespace: true })
+      );
+      ['0', '1', '2'].forEach((line) => {
+        const at = doc.resolve(pos(content, line));
+        expect(at.parent.type.name).toBe('paragraph');
+        expect(at.parentOffset).toBe(at.parent.content.size);
+        expect(at.index(0)).toBe(Number(line));
+      });
     });
   });
 });
