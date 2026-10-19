@@ -21,6 +21,14 @@ that a real poem revealed, rebuild its shape synthetically; do not copy from the
 `npm run conformance` against the real corpus (`MIDST_CORPUS`) runs only on a maintainer's machine or in
 the hand-run `conformance-real-corpus` workflow, never in public CI.
 
+## No words for people in the format
+
+Wording a person reads belongs to each app's message catalog (midst-infra `docs/design/message-catalog.md`),
+not to this library or the files it describes. Don't add English display text to either. Where an app shows
+text derived from a poem file, the file should store data and each app supplies the words: the one existing
+case, a draft marker's default name stored as English, is planned to become a stored number (the design's PR
+9).
+
 ## Licence
 
 AGPL-3.0-or-later (`LICENSE`). By contributing you agree your contribution is licensed the same way.
