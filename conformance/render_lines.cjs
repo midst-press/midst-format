@@ -14,29 +14,48 @@
 // Prints counts and fixture names only, never frame content. Exit 1 on any difference.
 //   node conformance/render_lines.cjs <dir of .midst.zip>   searched recursively. CI: fixtures only.
 // The real archive runs ONLY locally, and is reported by number, never by name.
-const fs = require('fs'),
-  path = require('path'),
-  os = require('os');
-const { execFileSync } = require('child_process');
-// The ACTUAL converter (built from midst-editor's util.ts by build:harness), replayed frame by frame:
+const fs = require("fs"),
+  path = require("path"),
+  os = require("os");
+const { execFileSync } = require("child_process");
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+const {
+  logEvent,
+  installUncaughtHandler,
+  reportHarnessError,
+} = require("./log.cjs");
+installUncaughtHandler();
+// The ACTUAL converter (src/convert.ts, the library the editor vendors, built by build:harness), replayed frame by frame:
 // the editor is shown what conversion produced, not a re-parse of the source.
-const { convertMidstFile } = require('../out/converter.cjs');
-const { openRenderer } = require('./render_page.cjs');
-const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
+// Both are required where they are used, so a usage error is reported without a built harness or a browser.
+const converter = () => require("../out/converter.cjs").convertMidstFile;
+const step = (acc, c) =>
+  acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
 
 function framesOf(zip) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'render-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "render-"));
   try {
-    execFileSync('unzip', ['-q', '-j', '-o', zip, '-x', '__MACOSX/*', '-d', tmp], { stdio: 'ignore' });
-    const found = fs.readdirSync(tmp).filter((n) => n.endsWith('.midst') && !n.startsWith('._'));
-    if (found.length !== 1) throw new Error(`expected 1 .midst entry, found ${found.length}`);
-    const raw = fs.readFileSync(path.join(tmp, found[0]), 'utf8');
+    execFileSync(
+      "unzip",
+      ["-q", "-j", "-o", zip, "-x", "__MACOSX/*", "-d", tmp],
+      { stdio: "ignore" },
+    );
+    const found = fs
+      .readdirSync(tmp)
+      .filter((n) => n.endsWith(".midst") && !n.startsWith("._"));
+    if (found.length !== 1)
+      throw new Error(`expected 1 .midst entry, found ${found.length}`);
+    const raw = fs.readFileSync(path.join(tmp, found[0]), "utf8");
     const frames = JSON.parse(raw).editorTimelineFrames;
-    const { history } = JSON.parse(convertMidstFile(raw));
-    let acc = '';
+    const { history } = JSON.parse(converter()(raw));
+    let acc = "";
     const converted = history.map((c) => (acc = step(acc, c)));
-    if (converted.length !== frames.length) throw new Error(`history ${converted.length} != frames ${frames.length}`);
-    return frames.map((f, i) => ({ content: f.content, converted: converted[i] }));
+    if (converted.length !== frames.length)
+      throw new Error(`history ${converted.length} != frames ${frames.length}`);
+    return frames.map((f, i) => ({
+      content: f.content,
+      converted: converted[i],
+    }));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -45,7 +64,8 @@ function framesOf(zip) {
 async function main() {
   const dir = process.argv[2];
   if (!dir) {
-    console.error('usage: node conformance/render_lines.cjs <dir of .midst.zip>');
+    console.log("usage: node conformance/render_lines.cjs <dir of .midst.zip>");
+    logEvent("error", "usage");
     process.exit(2);
   }
   const zips = [];
@@ -53,25 +73,30 @@ async function main() {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.midst.zip')) zips.push(p);
+      else if (e.name.endsWith(".midst.zip")) zips.push(p);
     }
   })(dir);
   zips.sort();
   // Our own fixtures are named; anything else (the real archive) is reported by number only.
   const label = (z, i) => {
-    const n = path.basename(z, '.midst.zip');
-    return /^(synthetic|html-shape)--/.test(n) ? n : `#${String(i + 1).padStart(2, '0')}`;
+    const n = path.basename(z, ".midst.zip");
+    return /^(synthetic|html-shape)--/.test(n)
+      ? n
+      : `#${String(i + 1).padStart(2, "0")}`;
   };
   if (zips.length === 0) {
-    console.error(`no .midst.zip files in ${dir}`);
+    console.log(`no .midst.zip files in ${dir}`);
+    logEvent("error", "no-poems");
     process.exit(2);
   }
-  const r = await openRenderer();
+  const r = await require("./render_page.cjs").openRenderer();
+  const { comparableEditorLines } = require("./render_page.cjs");
 
   // KNOWN differences, a ratchet: --known FILE maps fixture name -> expected differing-frame count.
   // Any count that CHANGES fails, so a regression and a fix both demand an edit here, with a reason.
-  const ki = process.argv.indexOf('--known');
-  const known = ki > 0 ? JSON.parse(fs.readFileSync(process.argv[ki + 1], 'utf8')) : null;
+  const ki = process.argv.indexOf("--known");
+  const known =
+    ki > 0 ? JSON.parse(fs.readFileSync(process.argv[ki + 1], "utf8")) : null;
   let bad = 0,
     unexpected = 0;
   for (const [i, z] of zips.entries()) {
@@ -81,7 +106,7 @@ async function main() {
       fewer = 0;
     for (const f of frames) {
       const b = await r.browserLines(f.content);
-      const e = await r.editorLines(f.converted);
+      const e = comparableEditorLines(b, await r.editorLines(f.converted), f.converted);
       if (b !== e) {
         diff++;
         if (e > b) more++;
@@ -91,19 +116,33 @@ async function main() {
     if (diff) bad++;
     const name = label(z, i);
     // Direction matters as much as count: a flip from editorMore to editorFewer is a different defect.
-    const k = (known && known[name]) || { differ: 0, editorMore: 0, editorFewer: 0 };
+    const k = (known && known[name]) || {
+      differ: 0,
+      editorMore: 0,
+      editorFewer: 0,
+    };
     const want = `${k.differ}/${k.editorMore ?? 0}/${k.editorFewer ?? 0}`;
     const got = `${diff}/${more}/${fewer}`;
     if (known && got !== want) unexpected++;
-    const mark = known && got !== want ? ` UNEXPECTED (known differ/more/fewer: ${want})` : known && diff ? ' (known)' : '';
-    console.log(`${diff ? 'DIFF' : 'SAME'} ${name.padEnd(44)} frames:${frames.length} differ:${diff} editorMore:${more} editorFewer:${fewer}${mark}`);
+    const mark =
+      known && got !== want
+        ? ` UNEXPECTED (known differ/more/fewer: ${want})`
+        : known && diff
+          ? " (known)"
+          : "";
+    console.log(
+      `${diff ? "DIFF" : "SAME"} ${name.padEnd(44)} frames:${frames.length} differ:${diff} editorMore:${more} editorFewer:${fewer}${mark}`,
+    );
   }
   await r.close();
-  console.log(`\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser (source white-space: ${r.SOURCE_WS})`);
-  if (known) console.log(`${unexpected} unexpected against ${process.argv[ki + 1]}`);
+  console.log(
+    `\n${zips.length - bad} of ${zips.length} show the same lines in the editor as in a browser (source white-space: ${r.SOURCE_WS})`,
+  );
+  if (known)
+    console.log(`${unexpected} unexpected against ${process.argv[ki + 1]}`);
   process.exit((known ? unexpected : bad) ? 1 : 0);
 }
 main().catch((e) => {
-  console.error(e.constructor.name);
+  reportHarnessError(e);
   process.exit(2);
 });

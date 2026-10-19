@@ -43,7 +43,12 @@ makes that single pair the only worked example available if A ever has to be con
     replay(h)    = h.reduce(step, '')
 
 Each change is one contiguous replacement, located by how much of the previous state it shares at the
-front and at the back. `pos` carries the cursor so a replay can show where the poet was typing.
+front and at the back. `pos` is where the cursor was after the change, as a ProseMirror position in the
+document after the change: the selection's anchor, for an edit made in the editor. A file converted from
+format B carries only what B recorded, the cursor's line, so its `pos` is the end of that line's block (0 when
+the line cannot be used). A paragraph the old player drew nothing for is dropped in conversion, so the line names
+the last block kept at or before it. A reader must treat `pos` as advisory: nothing in the format checks it, and the
+editor's replay and the website's player follow the writing from the documents themselves (#36).
 
 ## The conformance suite, and why its shape matters
 
@@ -84,12 +89,21 @@ would have been green and worthless.
 
 ## Running it
 
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, and the rules about poem content.
+
     npm ci                 # ci, never install: the pins are exact and version-sensitive
-    npm run provenance     # asserts the transcribed TipTap config still matches upstream
+    npm run provenance     # asserts the transcribed TipTap config and rules still match src/
+    npm run build:harness   # builds from src/convert.ts; the harness the commands below need
     npm test               # the self-tests (Jest): the text oracle, and a poem that FAILS leaves no text in the output; needs no harness
     npm run trajectory -- <poem.midst.zip>   # one archive's frame-by-frame replay, printed; needs the harness
-    npm run conformance:coverage   # how much of the editor's converter the corpus runs; numbers only
+    npm run conformance:coverage   # how much of src/convert.ts the corpus runs; numbers only
     npm run conformance    # the real corpus. Requires MIDST_CORPUS to point at it. Never in public CI.
+
+**Stdout is the report; stderr is the error log.** Every failure a script finds or meets is logged on stderr
+as one JSON object per line (`conformance/log.cjs`), for example
+`{"ts":"…","level":"error","script":"verify_all","event":"poem-error","index":3,"stage":"convert","class":"TypeError"}`.
+The fields are an allowlist of numbers and identifiers: never a message, never text from a poem. A throw that
+nothing caught is logged by its class alone, and the script exits 2. Usage and setup messages are on stdout.
 
 ⚠️ **Dependencies are pinned exactly, not with a caret.** `@tiptap/*` at `^2.5.4` resolves to 2.27.3
 today, and HTML generation is version-sensitive, so a caret would verify behaviour the editor does not

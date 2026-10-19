@@ -19,8 +19,10 @@ on:
   push:
     branches: [main]
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A PR's runs share its ref; each push to main gets its own group, so a newer one cannot cancel it even while pending.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Cancel a superseded run on a PR only: every push to main keeps its own verdict (midst-infra #102).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 defaults:
@@ -47,7 +49,7 @@ jobs:
         run: |
           python3 -m venv "$RUNNER_TEMP/precommit"
           "$RUNNER_TEMP/precommit/bin/pip" install --quiet 'pre-commit==4.6.2'
-          # conformance-synthetic needs the harness built from midst-editor; the job below runs it.
+          # conformance-synthetic needs the built harness (out/converter.cjs); the job below builds it and runs it.
           SKIP=conformance-synthetic "$RUNNER_TEMP/precommit/bin/pre-commit" run --all-files --show-diff-on-failure
 
   conformance:
@@ -62,22 +64,6 @@ jobs:
           echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { path: midst-format }
-      # The converter under test is midst-editor's real util.ts, from the sibling repository on
-      # this Gitea. The job's own token cannot read a private sibling (measured: "not found"), so
-      # this uses a READ-ONLY deploy key registered on midst-editor alone; it can read that one
-      # repository and nothing else, and pushing with it is refused. No ssh config is assumed: the
-      # port, key and Gitea's host key are all given here, and the host key is pinned rather than
-      # trusted on first use.
-      - name: check out midst-editor, whose util.ts is the converter under test
-        env:
-          DEPLOY_KEY: ${{ secrets.MIDST_EDITOR_DEPLOY_KEY }}
-        run: |
-          umask 077
-          trap 'rm -f "$RUNNER_TEMP/editor_key"' EXIT
-          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/editor_key"
-          printf '%s\n' '[gitea-server]:2222 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC/VGpxJRKcHAJCSqYHQ+NZNS7v2pibbUelMYqemnO8DOoAU6fngzVz49QPLvYQXy3Rc1W57+cf1MOrzYVJC3unsyIiMGycgQdKBqHAc8+rmBPvGvS+0U28T2F8idZlzfLIa8kt6K7dUkw2l65h5mHxAQ8YHyLv9kgNRVYMzjZmmX4Y1mYdJegyP8IAZUVgKewzw6FVNnJrN0/iomQSfhwYBIoPN4w9cUrKLuIteZX0Rs1FEZbSMy9GxyiH0fRn0X9P/0QO973UwaxlkSEKZY31+Geex1ynCEuulwQGkhhGhmnnaTCTlS9hwHpJ+pcrb0OnVdJj8cxeq1WLyVnZMEtHbu5+LX8ViicW8exEf9VAcJUExgn+itJXU5NceNcZLotDScJXGV1UI/de5TgjuB3WyFQphYdeiuKxwRywtV8fEFzzZRl+t1gSDvDjSU3/DJM4gZm5lARUnClUOW6uRGx6wuryhBeYoJroBzlnHZp+yOlWYdTwrcZG5+wk60R6ETjqOq/zysAg2fZTA2obvTmYlOojYf+nfvIPT0I0FZNPDaY1qqtR8pgJwZX61yHtDEiqHyje+NQUeIvAt+vm7wQ6coYSlle+5zzWuDZzgo15KkXqAZCdgv8al+WRSZKTdGnNer5cB0uZSBSDr9dg95WLX0o+rUYTX9g0ocmcrOpP0Q==' > "$RUNNER_TEMP/known_hosts"
-          export GIT_SSH_COMMAND="ssh -F /dev/null -p 2222 -i $RUNNER_TEMP/editor_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
-          git clone --quiet --depth 1 stuartswerdloff@gitea-server:The_Kindled/midst-editor.git midst-editor
       # Fail loudly rather than fall back to what macOS ships (bash 3.2, Python 3.9). The runner
       # account's own PATH is not ours to rely on, so this job puts Homebrew first itself and then
       # checks that it took.
@@ -85,16 +71,24 @@ jobs:
         run: bash midst-format/.gitea/scripts/toolchain_guard.sh "$NVMRC"
       - run: npm ci --ignore-scripts
         working-directory: midst-format
-      - name: the transcribed TipTap config must still match upstream
+      - name: the transcribed TipTap config and rules must still match src/
         working-directory: midst-format
-        env:
-          MIDST_EDITOR_UTIL_TS: ${{ github.workspace }}/midst-editor/src/main/util.ts
         run: npm run provenance
-      - name: build the harness from midst-editor's REAL source
+      - name: build the harness from src/convert.ts
         working-directory: midst-format
-        env:
-          MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
         run: npm run build:harness
+      - name: build the library from src/
+        working-directory: midst-format
+        run: npm run build:lib
+      - name: parity, two builds of src/ (harness esbuild and build:lib), synthetic corpus
+        working-directory: midst-format
+        run: MIDST_CORPUS=fixtures/synthetic npm run parity
+      - name: the library type-checks for TypeScript 4.6 consumers
+        working-directory: midst-format
+        run: npm run consumer-ts46
+      - name: the library build is reproducible
+        working-directory: midst-format
+        run: npm run reproducible
       - name: self-tests (Jest) - the text oracle, and a failing poem leaves no text in any output
         working-directory: midst-format
         run: npm test

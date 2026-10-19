@@ -1,0 +1,20 @@
+{
+  "moves": [
+    {
+      "editorCommit": "7a5cdbef3c0089164fe17c00983b47d72f615fc1",
+      "files": {
+        "src/history.ts": "src/renderer/tracking/utils.ts",
+        "src/extensions.ts": "src/shared/poemExtensions.ts",
+        "src/convert.ts": "src/main/util.ts"
+      },
+      "excludedFromConvert": ["resolveHtmlPath", "loadDataIntoWorkspace"]
+    },
+    {
+      "editorCommit": "baf4661190275374257fa9d7aca4b90b513b74bd",
+      "files": {
+        "src/follow.ts": "src/renderer/components/Replay/follow.ts",
+        "src/buildLabel.ts": "src/shared/buildLabel.ts"
+      }
+    }
+  ]
+}

@@ -22,11 +22,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: pre-commit (the same hooks your commit runs)
         run: |
           pip install 'pre-commit==4.6.2'
-          # conformance-synthetic needs the harness built from a midst-editor checkout, which this
+          # conformance-synthetic needs the built harness (out/converter.cjs), which this
           # job does not have. The conformance job below builds it and runs the suite properly.
           SKIP=conformance-synthetic pre-commit run --all-files --show-diff-on-failure
 
@@ -36,28 +36,31 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { path: midst-format }
-      - name: check out midst-editor, whose util.ts is the converter under test
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: midst-press/midst-editor
-          path: midst-editor
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: midst-format/.nvmrc
           cache: npm
           cache-dependency-path: midst-format/package-lock.json
-      - run: npm ci
+      - run: npm ci --ignore-scripts
         working-directory: midst-format
-      - name: the transcribed TipTap config must still match upstream
+      - name: the transcribed TipTap config and rules must still match src/
         working-directory: midst-format
-        env:
-          MIDST_EDITOR_UTIL_TS: ${{ github.workspace }}/midst-editor/src/main/util.ts
         run: npm run provenance
-      - name: build the harness from midst-editor's REAL source
+      - name: build the harness from src/convert.ts
         working-directory: midst-format
-        env:
-          MIDST_EDITOR_SRC: ${{ github.workspace }}/midst-editor
         run: npm run build:harness
+      - name: build the library from src/
+        working-directory: midst-format
+        run: npm run build:lib
+      - name: parity, two builds of src/ (harness esbuild and build:lib), synthetic corpus
+        working-directory: midst-format
+        run: MIDST_CORPUS=fixtures/synthetic npm run parity
+      - name: the library type-checks for TypeScript 4.6 consumers
+        working-directory: midst-format
+        run: npm run consumer-ts46
+      - name: the library build is reproducible
+        working-directory: midst-format
+        run: npm run reproducible
       - name: self-tests (Jest) - the text oracle, and a failing poem leaves no text in any output
         working-directory: midst-format
         run: npm test

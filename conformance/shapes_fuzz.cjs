@@ -9,7 +9,7 @@
 // A failing document is shrunk to a minimal one, which is printed (it contains no poem text, by construction)
 // and, with --emit DIR, written as a fixture.
 //
-//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--history all|append|edit] [--pos-known E/A/W/N/T] [--open [class,...]] [--emit DIR]
+//   node conformance/shapes_fuzz.cjs [--seed N] [--n COUNT] [--history all|append|edit] [--open [class,...]] [--emit DIR]
 // --open adds the primitives whose conversion is a KNOWN open defect (OPEN below): all of them, or the named classes.
 // --open-controls runs each open class alone and requires it to FAIL, so the generator can still reach it. Without it every check must
 // pass; when a defect is fixed, move its primitive out of OPEN so CI guards it.
@@ -18,19 +18,21 @@ const fs = require('fs'),
   os = require('os'),
   path = require('path');
 const { execFileSync } = require('child_process');
-const { convertMidstFile } = require('../out/converter.cjs');
+// Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
+const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
+installUncaughtHandler();
 const { normalise } = require('./normalise.cjs');
 const { textOf } = require('./textexact.cjs');
-const { openRenderer } = require('./render_page.cjs');
+// Required where used, so a usage error is reported without a built harness or a browser.
+const convertMidstFile = (raw) => require('../out/converter.cjs').convertMidstFile(raw);
+const openRenderer = () => require('./render_page.cjs').openRenderer();
+const comparableEditorLines = (...a) => require('./render_page.cjs').comparableEditorLines(...a);
 
 // Known open defects, each generated only under --open.
 const OPEN = {
-  font: 'midst-editor #15: a trailing <br> inside <font>/<sup>/<sub> still doubles',
-  divLine: 'midst-editor #15: a non-empty <div>a<br></div> still doubles',
+  divLine: 'midst-editor #15: a <div> line (<div><br></div>, <div>a<br></div>) does not draw the lines the browser did',
+  supSub: 'midst-editor #15: <sup> or <sub>, even empty, can make the editor show fewer lines than the browser',
   plainTab: 'midst-editor #17: a plain tab (not in a white-space: pre span) showed as one space in the old app',
-  markOutside: 'midst-editor #15: a selection-marker span outside any paragraph becomes its own paragraph',
-  hiddenAfterBr: 'midst-editor #15: a <br> followed only by invisible inline content (a selection marker, an empty or whitespace-only tag) is not drawn by a browser, but the converter keeps it',
-  emptyLine: 'midst-editor #15: a paragraph with nothing visible (spaces, newlines, hidden markers) is zero height in a browser, one line in the editor',
 };
 
 const arg = (k, d) => {
@@ -41,18 +43,19 @@ const SEED = Number(arg('--seed', Math.floor(Math.random() * 2 ** 31)));
 const N = Number(arg('--n', 500));
 const openArg = process.argv.includes('--open') ? arg('--open', '') : null;
 const OPEN_ON = new Set(openArg === null ? [] : !openArg || openArg.startsWith('--') ? Object.keys(OPEN) : openArg.split(','));
-for (const k of OPEN_ON) if (!OPEN[k]) (console.error(`unknown open class ${k}; known: ${Object.keys(OPEN)}`), process.exit(2));
+for (const k of OPEN_ON)
+  if (!OPEN[k]) (console.log(`unknown open class ${k}; known: ${Object.keys(OPEN)}`), logEvent('error', 'usage'), process.exit(2));
 const on = (k) => OPEN_ON.has(k);
 const WITH_OPEN = OPEN_ON.size > 0;
 const EMIT = arg('--emit', null);
 const MODEL = arg('--history', 'all');
-// A ratchet on the REPORTED scroll measure (midst-editor #20): --pos-known E/A/W/N/T (edited line, another line,
-// whole editor, none, throws) fails when the counts CHANGE,
-// so a converter change that moves the replay scroll target, worse or better, needs an edit here.
-const POS_KNOWN = arg('--pos-known', null);
-if (!['all', 'append', 'edit'].includes(MODEL)) (console.error('--history must be all, append or edit'), process.exit(2));
+// The replay-scroll report and its --pos-known ratchet are retired (midst-format #19): neither the editor's Replay nor
+// the website's player reads pos any more. Refused rather than ignored, so a caller relying on it hears it is gone.
+if (process.argv.includes('--pos-known')) (console.log('--pos-known is retired: nothing reads pos any more (midst-format #19)'), logEvent('error', 'usage'), process.exit(2));
+if (!['all', 'append', 'edit'].includes(MODEL)) (console.log('--history must be all, append or edit'), logEvent('error', 'usage'), process.exit(2));
 if (!Number.isInteger(SEED) || !Number.isInteger(N) || N < 1) {
-  console.error('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
+  console.log('usage: shapes_fuzz.cjs [--seed N] [--n COUNT] [--open] [--emit DIR]');
+  logEvent('error', 'usage');
   process.exit(2);
 }
 
@@ -76,7 +79,9 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 // line   {kind:'p', kids:[node], trailingBr:bool} | {kind:'blank'} | {kind:'div', kids, trailingBr}
 // node   {t:'word',s} {t:'sp',n} {t:'nbsp'} {t:'tabpre'} {t:'tab'} {t:'br'} {t:'mark'} {t:'nl'} {t:'wrap',tag,kids}
 const WRAPS = ['em', 'strong', 'i', 'b', 'u', 's', 'span'];
-const OPEN_WRAPS = ['font', 'sup', 'sub'];
+// <font>: contenteditable writes it for colour and size, and a trailing <br> inside it is handled (midst-editor #15).
+const MORE_WRAPS = ['font'];
+const OPEN_WRAPS = ['sup', 'sub'];
 let markId = 0;
 
 function genInline(r, depth) {
@@ -87,34 +92,17 @@ function genInline(r, depth) {
   if (k === 'word') return { t: 'word', s: Array.from({ length: 1 + r.int(5) }, () => r.pick('abcdefghij'.split(''))).join('') };
   if (k === 'sp') return { t: 'sp', n: 1 + r.int(3) };
   if (k === 'wrap') {
-    const tags = on('font') ? WRAPS.concat(OPEN_WRAPS) : WRAPS;
+    const tags = on('supSub') ? WRAPS.concat(MORE_WRAPS, OPEN_WRAPS) : WRAPS.concat(MORE_WRAPS);
     return { t: 'wrap', tag: r.pick(tags), kids: genKids(r, depth + 1, 1 + r.int(3)) };
   }
   return { t: k };
 }
 const genKids = (r, depth, n) => Array.from({ length: n }, () => genInline(r, depth));
 
-// Nothing a browser draws a line box for: spaces and newlines collapse, a selection marker is display: none.
-const invisible = (kids) => kids.every((k) => ['sp', 'nl', 'mark'].includes(k.t) || (k.t === 'wrap' && invisible(k.kids)));
-// A <br> followed, to the end of the line, only by invisible inline content (a marker, or a tag holding nothing
-// visible) is a trailing break the converter cannot see. Spaces alone are fine: its rule allows them.
-function brThenHidden(kids) {
-  const flat = [];
-  (function f(ks) {
-    for (const k of ks) {
-      if (k.t === 'wrap') flat.push('wrap'), f(k.kids);
-      else flat.push(k.t);
-    }
-  })(kids);
-  const tail = flat.slice(flat.lastIndexOf('br') + 1);
-  return flat.includes('br') && tail.every((t) => ['mark', 'sp', 'nl', 'wrap'].includes(t)) && tail.some((t) => t === 'mark' || t === 'wrap');
-}
 // Without --open, no line of an open class: not generated, and not reached by a mutation or a shrink step.
 function lineAllowed(l) {
   if (l.kind === 'blank') return true;
   if (!l.kids.length) return false;
-  if (!on('emptyLine') && !l.trailingBr && invisible(l.kids)) return false; // OPEN.emptyLine
-  if (!on('hiddenAfterBr') && brThenHidden(l.kids)) return false; // OPEN.hiddenAfterBr
   return true;
 }
 function genLine(r) {
@@ -126,7 +114,7 @@ function genLine(r) {
 }
 function genDoc(r) {
   const n = 1 + r.int(5);
-  return { lines: Array.from({ length: n }, () => genLine(r)), markFirst: on('markOutside') && r.chance(0.2) }; // OPEN.markOutside
+  return { lines: Array.from({ length: n }, () => genLine(r)), markFirst: r.chance(0.2) }; // a selection marker outside any paragraph: an open class until midst-editor GitHub #31 fixed it, now generated always
 }
 
 // ---- histories: how the document changes between frames -------------------------------------------
@@ -257,7 +245,7 @@ function midstOf(c) {
 
 // ---- the checks -------------------------------------------------------------------------------------
 const step = (acc, c) => acc.slice(0, c.front) + c.inserted + acc.slice(acc.length - c.end);
-async function check(c, R, posStats) {
+async function check(c, R) {
   const { frames, raw } = midstOf(c);
   let history;
   try {
@@ -274,16 +262,8 @@ async function check(c, R, posStats) {
     if (textOf(acc, { editor: true }) !== textOf(src)) fails.add('text');
     if (acc !== normalise(src)) fails.add('trajectory');
     const b = await R.browserLines(src),
-      e = await R.editorLines(acc);
+      e = comparableEditorLines(b, await R.editorLines(acc), acc);
     if (b !== e) fails.add(e > b ? 'lines-editorMore' : 'lines-editorFewer');
-    // REPORTED, not gated (midst-editor #20): what Replay's scroll does with the converter's pos. It calls
-    // domAtPos(pos).node.scrollIntoView?.(), so: no scroll, the whole editor, or one line (on the edited one, or not).
-    if (posStats) {
-      const t = await R.scrollTarget(acc, history[i].pos ?? 0);
-      const k = typeof t === 'string' ? t : t === Number(frames[i].lineNumber) ? 'edited line' : 'another line';
-      posStats.frames++;
-      posStats.dist[k] = (posStats.dist[k] || 0) + 1;
-    }
   }
   return [...fails].sort();
 }
@@ -379,6 +359,8 @@ function openControls() {
     const ok = r.status === 1;
     if (!ok) inert++;
     console.log(`${ok ? 'fires' : 'INERT'}  ${k.padEnd(14)} exit ${r.status}`);
+    // `case` is the class's position in OPEN, a number; the line above names it.
+    if (!ok) logEvent('error', 'control-not-fired', { seed: SEED, case: Object.keys(OPEN).indexOf(k) });
   }
   console.log(`\n${Object.keys(OPEN).length - inert} of ${Object.keys(OPEN).length} open classes fail when generated alone (seed ${SEED}, ${N} documents)`);
   process.exit(inert ? 1 : 0);
@@ -390,18 +372,25 @@ async function main() {
   for (const k of OPEN_ON) console.log(`  open: ${k}  ${OPEN[k]}`);
   const R = await openRenderer();
   // Controls: a document of a known open class must FAIL and a plain one must PASS, or the checks are inert.
-  const bad = { lines: [{ kind: 'p', kids: [{ t: 'br' }, { t: 'mark' }], trailingBr: false }], markFirst: false };
+  // A line holding only a plain tab (plainTab, still open, midst-editor #17): zero height in the old app, whose
+  // white-space is normal, and one line in the editor, which keeps tabs. (The control used to be a <br> then only a
+  // whitespace-only tag, which midst-editor #15 fixed.)
+  const bad = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: false }, { kind: 'p', kids: [{ t: 'tab' }], trailingBr: false }], markFirst: false };
   const good = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: true }, { kind: 'blank' }], markFirst: false };
   const cb = await check(appendCase(bad), R),
     cg = await check(appendCase(good), R);
-  if (!cb.length || cg.length) throw new Error(`control failed: known-bad [${cb}] plain [${cg}]`);
+  if (!cb.length || cg.length) {
+    // The checks are inert, so nothing measured after this would mean anything. Exit 2, as for a harness error.
+    console.log(`control failed: known-bad [${cb}] plain [${cg}]`);
+    logEvent('error', 'control-not-fired', { seed: SEED, count: (cb.length ? 0 : 1) + (cg.length ? 1 : 0) });
+    process.exit(2);
+  }
   const r = rng(SEED);
   const bySig = new Map();
   let failed = 0;
-  const posStats = { frames: 0, dist: {} };
   for (let k = 0; k < N; k++) {
     const d = genCase(r);
-    const f = await check(d, R, posStats);
+    const f = await check(d, R);
     if (!f.length) continue;
     failed++;
     const sig = f.join();
@@ -412,22 +401,16 @@ async function main() {
     const min = await shrink(v.doc, sig, R);
     const { frames } = midstOf(min);
     console.log(`\nFAIL [${sig}]  ${v.count} case(s), first #${v.index}; minimal (${frames.length} frame(s)):`);
+    logEvent('error', 'case-fail', { seed: SEED, case: v.index, count: v.count });
     for (const f of frames) console.log(`  line ${f.lineNumber}  ${JSON.stringify(f.content)}`);
     if (EMIT) console.log(`  written ${emitFixture(min, `html-shape--fuzz-${sig.replace(/[^a-z]+/g, '-')}-${SEED}`)}`);
   }
   await R.close();
-  const scroll = ['edited line', 'another line', 'editor', 'none', 'throws'].map((k) => `${k} ${posStats.dist[k] || 0}`).join(', ');
-  console.log(`\nreplay scroll (reported, not gated; midst-editor #20), of ${posStats.frames} frames: ${scroll}`);
   console.log(`${N - failed} of ${N} cases pass every check   (history model ${MODEL}; seed ${SEED}; re-run with --seed ${SEED})`);
-  let posChanged = false;
-  if (POS_KNOWN) {
-    const got = ['edited line', 'another line', 'editor', 'none', 'throws'].map((k) => posStats.dist[k] || 0).join('/');
-    posChanged = got !== POS_KNOWN;
-    console.log(posChanged ? `SCROLL CHANGED: edited/another/editor/none/throws ${got}, known ${POS_KNOWN} (midst-editor #20; update --pos-known with the reason)` : `scroll edited/another/editor/none/throws ${got}, as known`);
-  }
-  process.exit(failed || posChanged ? 1 : 0);
+  process.exit(failed ? 1 : 0);
 }
 main().catch((e) => {
-  console.error(e && e.message ? e.message : e);
+  // The message may quote a generated document: the class and code only.
+  reportHarnessError(e);
   process.exit(2);
 });

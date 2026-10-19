@@ -12,6 +12,7 @@ const fs = require('fs'),
   crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { textOf } = require('./textexact.cjs');
+const { logEvent, classOf } = require('./log.cjs');
 
 const step = (i, c) => i.slice(0, c.front) + c.inserted + i.slice(i.length - c.end);
 const sha12 = (s) => crypto.createHash('sha256').update(s, 'utf8').digest('hex').slice(0, 12);
@@ -28,7 +29,7 @@ class ConformanceError extends Error {
 // What may be said about a thrown value: where it happened, its class, and for our own errors the
 // fixed code and a count. The message is dropped on purpose.
 function describeError(e, stage) {
-  const d = { stage, class: (e && e.constructor && e.constructor.name) || typeof e };
+  const d = { stage, class: classOf(e) };
   if (e instanceof ConformanceError) {
     d.code = e.code;
     if (Number.isInteger(e.count)) d.count = e.count;
@@ -43,7 +44,7 @@ const META_FIELDS = {
   editorFontSize: 'fontSize',
   editorHighestEverDraftNumber: 'highestDraftNumber',
   editorTitle: 'title',
-  editorAuthor: 'author',
+  // No editorAuthor: a poem file carries no author (Stuart, 18 Oct, following Annelyse; midst-editor #181).
 };
 function expectedMeta(b = {}) {
   const m = {};
@@ -211,4 +212,37 @@ function summarise(rows) {
   return { ok, bad, err, ctl, ctlN, total: rows.length, metaFields, exitCode };
 }
 
-module.exports = { verifyZip, formatRow, recordRow, passed, summarise, describeError, ConformanceError, step };
+// The stderr log (midst-format #38) for a row that did not pass: the same facts the printed line gives, under a
+// fixed event name, and never the archive name.
+function logRow(r, log = logEvent) {
+  if (r.error) {
+    const { stage, class: cls, code, count, exit } = r.error;
+    const fields = { index: r.index, stage, class: cls };
+    if (code) fields.code = code;
+    if (Number.isInteger(count)) fields.count = count;
+    if (Number.isInteger(exit)) fields.exit = exit;
+    log('error', 'poem-error', fields);
+  } else if (!passed(r)) {
+    log('error', 'poem-fail', r.firstBad ? { index: r.index, firstBad: r.firstBad.i } : { index: r.index });
+  }
+}
+
+// The stderr log for the run as a whole: every reason summarise gives a non-zero exit that a row's own log
+// does not already carry.
+function logSummary(s, log = logEvent) {
+  if (s.total === 0) log('error', 'no-poems');
+  if (s.ctl !== s.ctlN) log('error', 'control-not-fired', { count: s.ctlN - s.ctl });
+}
+
+module.exports = {
+  verifyZip,
+  formatRow,
+  recordRow,
+  passed,
+  summarise,
+  describeError,
+  ConformanceError,
+  step,
+  logRow,
+  logSummary,
+};

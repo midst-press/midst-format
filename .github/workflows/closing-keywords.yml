@@ -1,0 +1,65 @@
+# No closing keyword ("fixes", "closes", "resolves" and a number) in a pull request's title, its
+# description or its commit messages.
+#
+# An issue here is the requirement in a user's words. It is closed by whoever checks the fix in a
+# release, not by the merge that fixes it (see CONTRIBUTING.md). A closing keyword would close it at the
+# merge. Write "Refs" and the number for a mention, and "Completes" and the number in the pull request
+# that finishes the issue.
+#
+# The checker is run from the base branch, never from the pull request: the pull request's commits are
+# fetched to be read, and nothing in them is executed.
+#
+# The push-up branch (gitea-main in this repository) is left alone. Its commits were checked before they
+# were pushed, by tools that can ask which numbers are open here. A branch of that name in a fork is
+# checked like any other: the name alone is something anyone can choose.
+name: closing-keywords
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+concurrency:
+  group: closing-keywords-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  check:
+    if: >-
+      !(github.head_ref == 'gitea-main' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+      - name: fetch the pull request's commits, to read their messages
+        env:
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "+refs/pull/$NUMBER/head:refs/remotes/origin/the-pull-request"
+      - name: control, the check fails on a title that has a closing keyword
+        env:
+          CONTROL_TITLE: "a title that would close something (fixes #1)"
+        run: |
+          rc=0
+          python3 tools/closing_refs.py --title-env CONTROL_TITLE || rc=$?
+          if [ "$rc" -ne 1 ]; then
+            echo "expected exit 1 (found) for a title with a closing keyword, got $rc: a pass below would mean nothing" >&2
+            exit 1
+          fi
+      - name: no closing keyword in the title, the description or the commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # The pull request's own commits: those not on the base branch as it is now. Against the base as
+          # it was when the pull request was opened, a branch that has merged main in would be judged on
+          # main's commits too. None at all means the range is not what it should be, and a pass would be
+          # for the title and description alone.
+          range="origin/$BASE_REF..refs/remotes/origin/the-pull-request"
+          count="$(git rev-list --count "$range")"
+          if [ "$count" -lt 1 ]; then
+            echo "no commits in $range, so no commit message was checked" >&2
+            exit 1
+          fi
+          python3 tools/closing_refs.py --range "$range" --title-env PR_TITLE --body-env PR_BODY

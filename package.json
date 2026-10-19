@@ -1,20 +1,26 @@
 {
   "name": "@midst-press/midst-format",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "The .midst file format: spec, converters between generations, and the conformance suite.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "provenance": "node conformance/provenance.cjs",
     "build:harness": "node conformance/build.mjs",
-    "test": "jest",
+    "prepare": "node tools/install-hooks.cjs",
+    "test": "jest --coverage",
     "trajectory": "node conformance/trajectory.cjs",
     "conformance": "node conformance/verify_all.cjs",
     "conformance:coverage": "node conformance/coverage.cjs",
     "markloss": "node conformance/markloss.cjs",
     "render-lines": "node conformance/render_lines.cjs fixtures --known conformance/render_lines.known.json",
-    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000 --pos-known 5087/1034/7960/3821/0",
-    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls"
+    "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
+    "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls",
+    "build:lib": "node tools/build-lib.mjs",
+    "verbatim": "node tools/verbatim.mjs",
+    "parity": "node conformance/parity.cjs",
+    "consumer-ts46": "node tools/consumer-ts46.cjs",
+    "reproducible": "node tools/reproducible.mjs"
   },
   "dependencies": {
     "@tiptap/core": "2.5.4",
@@ -24,11 +30,38 @@
     "node-html-parser": "6.1.13"
   },
   "devDependencies": {
+    "@types/jest": "30.0.0",
     "c8": "12.0.0",
     "esbuild": "0.28.2",
     "jest": "30.5.2",
+    "jest-environment-jsdom": "30.5.2",
     "playwright": "1.64.0",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "ts-jest": "29.4.14",
+    "typescript": "5.5.3",
+    "typescript-4.6": "npm:typescript@4.6.3"
   },
-  "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have."
+  "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have.",
+  "overrides": {
+    "@tiptap/core": "2.5.4",
+    "@tiptap/extension-blockquote": "2.5.4",
+    "@tiptap/extension-bold": "2.5.4",
+    "@tiptap/extension-bullet-list": "2.5.4",
+    "@tiptap/extension-code": "2.5.4",
+    "@tiptap/extension-code-block": "2.5.4",
+    "@tiptap/extension-document": "2.5.4",
+    "@tiptap/extension-dropcursor": "2.5.4",
+    "@tiptap/extension-gapcursor": "2.5.4",
+    "@tiptap/extension-hard-break": "2.5.4",
+    "@tiptap/extension-heading": "2.5.4",
+    "@tiptap/extension-history": "2.5.4",
+    "@tiptap/extension-horizontal-rule": "2.5.4",
+    "@tiptap/extension-italic": "2.5.4",
+    "@tiptap/extension-list-item": "2.5.4",
+    "@tiptap/extension-ordered-list": "2.5.4",
+    "@tiptap/extension-paragraph": "2.5.4",
+    "@tiptap/extension-strike": "2.5.4",
+    "@tiptap/extension-text": "2.5.4",
+    "@tiptap/pm": "2.5.4"
+  }
 }

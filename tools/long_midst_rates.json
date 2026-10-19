@@ -1,0 +1,118 @@
+{
+  "measured": true,
+  "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)",
+  "set": "typingOnly",
+  "reportedRunSeed": 1,
+  "note": "Parameter file for tools/generate_long_midst.mjs. Every scalar has a nominal value, a range, the basis of that range and its source; override a nominal with --set path=value. Whole-document rewrites (inserted or removed > 1000 characters; 671 of them, 0.29% of edits) are deliberately NOT modelled: in a multi-million-character text one would copy millions of characters, which is not what happens in a real few-thousand-character poem. Quantile tables are read between their points on a log scale. Table ends that the aggregates do not give (marked assumed) are stated in the figure's own note.",
+  "editKindShare": {
+    "insertOnly": {
+      "nominal": 0.67,
+      "range": [0.536, 0.804],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "removeOnly": {
+      "nominal": 0.148,
+      "range": [0.1184, 0.1776],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "replace": {
+      "nominal": 0.145,
+      "range": [0.116, 0.174],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "noop": {
+      "nominal": 0.037,
+      "range": [0.0296, 0.0444],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "comment": "Share of all edits by kind. Must sum to 1 (a --set override of one needs the others set to match)."
+  },
+  "insertedChars": {
+    "shareExactlyOne": {
+      "nominal": 0.668,
+      "range": [0.5344, 0.8016],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "measuredQuantiles": {
+      "p10": 0,
+      "p50": 1,
+      "p90": 2,
+      "p99": 15,
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "multiCharQuantiles": {
+      "quantiles": [
+        [0, 2],
+        [0.32, 2],
+        [0.93, 15],
+        [1, 40]
+      ],
+      "source": "derived from the measured inserted-characters quantiles above: edits inserting 2+ characters are 1 - 0.668 - (0.148 + 0.037) = 14.7% of all edits; p90 = 2 puts 4.7% of edits at exactly 2 (32% of the 2+ edits); p99 = 15 puts 93% of the 2+ edits at 15 or fewer. The top end (40 characters) is ASSUMED: the measured quantiles stop at p99.",
+      "rangeBasis": "none"
+    }
+  },
+  "deletionRuns": {
+    "lengthQuantiles": {
+      "quantiles": [
+        [0, 1],
+        [0.1, 1],
+        [0.5, 2],
+        [0.9, 6],
+        [0.99, 16],
+        [1, 40]
+      ],
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only); run = consecutive remove-only edits. The top end (40) is ASSUMED: the measured quantiles stop at p99.",
+      "rangeBasis": "none"
+    },
+    "shareRetyped": {
+      "nominal": 0.538,
+      "range": [0.4304, 0.6456],
+      "rangeBasis": "assumed +/-20% sensitivity band; per-poem spread is not in the aggregates",
+      "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only)"
+    },
+    "removedCharsPerEdit": {
+      "nominal": 6.5,
+      "range": [1, 10],
+      "rangeBasis": "assumed 1 (single backspaces) to 10",
+      "source": "calibrated, NOT measured: how many characters one remove-only edit takes out was not in the aggregates; chosen so a full-length generated file has about the measured 2.28 edits per final character"
+    }
+  },
+  "gapMs": {
+    "quantiles": [
+      [0, 10],
+      [0.05, 48],
+      [0.1, 67],
+      [0.25, 88],
+      [0.5, 143],
+      [0.75, 270],
+      [0.9, 1097],
+      [0.9281, 2000],
+      [0.95, 3567],
+      [0.9753, 10000],
+      [0.99, 29962],
+      [0.99513, 60000],
+      [0.99884, 600000],
+      [0.99917, 3600000],
+      [1, 14400000]
+    ],
+    "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only); points at p5..p99 are the measured gap quantiles, the points at 2 s, 10 s, 60 s, 10 min and 1 h are the measured shares of gaps above them (0.0719, 0.0247, 0.00487, 0.00116, 0.00083). The floor (10 ms at p0) and the top end (4 h at p100) are ASSUMED.",
+    "rangeBasis": "none"
+  },
+  "burstCharsPerMinute": {
+    "nominal": 310,
+    "range": [250, 370],
+    "rangeBasis": "assumed +/-20% sensitivity band; a single figure was given, no spread",
+    "source": "measured by Violet on the same 54 poems: single-character typing within bursts (gaps under 2 s), about 310 chars/min"
+  },
+  "editsPerFinalChar": {
+    "nominal": 2.28,
+    "range": [1.15, 4.34],
+    "rangeBasis": "measured p10 to p90 across poems",
+    "source": "measured: converted-beta-0ec3c44, 54 poems, 233,233 entries, 16 Oct 2026, tools/measure_typing_rates.mjs (typingOnly set, aggregates only); corpus figure, counted against HTML characters including tags. A target to compare the generated file with, not a control: it follows from the other parameters (see removedCharsPerEdit)."
+  }
+}

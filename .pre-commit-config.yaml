@@ -2,8 +2,11 @@
 #     pre-commit run --all-files --show-diff-on-failure
 # One config, two callers, so local and CI gates cannot drift apart.
 #
-# Install once per clone:  pre-commit install
-default_install_hook_types: [pre-commit, commit-msg]
+# Install once per clone:  pre-commit install (npm ci runs it: tools/install-hooks.cjs)
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+# The checks run on commit, and in CI by `pre-commit run`. Only the hooks below that name another stage run there:
+# the closing-keyword check on the commit message, the force-push refusal on push.
+default_stages: [pre-commit, manual]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -57,3 +60,39 @@ repos:
         entry: npx --no-install jest conformance/no_text.test.cjs
         pass_filenames: false
         files: "^conformance/"
+
+      # ---- closing keywords. GitHub applies "fixes #25" in a commit message to ITS issue 25, which is not
+      # ours: our commits use Gitea's numbers. Two GitHub items were closed that way (midst-infra #14). ----
+      - id: no-closing-keyword-in-commit-message
+        name: no closing keyword in a commit message (write Refs #N; the keyword goes in the Gitea PR body)
+        language: system
+        entry: python3 tools/closing_refs.py --message-file
+        stages: [commit-msg]
+      - id: midst-infra-copies
+        name: tools/closing_refs.py, tools/issue_flow.py, tools/refuse_force_push.py, tools/install-hooks.cjs, tools/require-hooks.cjs and tools/test-install-hooks.cjs are copies from midst-infra (change them there first, then here with the checksums)
+        language: system
+        entry: shasum -a 256 -c tools/midst-infra-copies.sha256
+        pass_filenames: false
+        files: '^tools/(closing_refs\.py|issue_flow\.py|refuse_force_push\.py|install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs|midst-infra-copies\.sha256)$'
+      - id: test-install-hooks
+        name: tools/test-install-hooks.cjs (the git-hook installer, a copy from midst-infra #37)
+        language: system
+        entry: node --test tools/test-install-hooks.cjs
+        pass_filenames: false
+        files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
+
+      # ---- a pushed branch is never rewritten. The servers refuse it (Gitea and GitHub); this says so before
+      # anything is sent, and what to do instead. A copy from midst-infra, tested there. ----
+      - id: refuse-force-push
+        name: no rewriting a pushed branch (merge the base in instead of rebasing)
+        language: system
+        entry: python3 tools/refuse_force_push.py
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+      - id: pre-push-hook-installed
+        name: this clone has the pre-push hook (npm ci or pre-commit install adds it)
+        language: system
+        entry: python3 tools/refuse_force_push.py --installed
+        always_run: true
+        pass_filenames: false

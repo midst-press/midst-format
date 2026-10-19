@@ -1,0 +1,29 @@
+name: Report a problem or ask for a change
+description: The format description or the conformance suite is wrong, unclear, or should change.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not paste the text of a poem here or attach a `.midst` file of someone's work: this page is public. Describe what happens in your own words, or use made-up text.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what do you want?
+      description: What you did, what you expected, and what you saw instead. For a request, what you would like the description or the suite to say or do.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      # The same label as in midst-editor and midst-web, where tools/issue_flow.py (STEPS_HEADING) quotes
+      # the answer back when a release contains the fix. Nothing here runs that script yet (CONTRIBUTING.md
+      # says why); keep the label the same so that it can.
+      label: How will we know this works?
+      description: Steps someone can follow to see that it is fixed or done. For example "Save a poem with a struck-through line in the editor, open it on the site, and the line is struck through."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Which version of Midst wrote the file, if a file is involved?
+      description: About Midst shows the version (the Midst menu on a Mac, the Help menu on Windows and Linux). For example "0.3.0".

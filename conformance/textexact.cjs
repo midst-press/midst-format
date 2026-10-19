@@ -14,10 +14,49 @@ const decode = (s) =>
   });
 // A <br> that ends a paragraph or div is not drawn by a browser, so it is not a line. (Browser
 // semantics, so p AND div; the converter's own rule is p only, for the editor's sake.)
-const dropUndrawnBreaks = (html) => html.replace(/<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/(?:p|div)>)/gi, '$1');
+// What may follow it is anything that draws nothing: whitespace, and inline tags opening or closing with nothing in
+// them, <font>, <sup> and <sub> included (midst-editor #15); a tag that keeps its whitespace is never passed over.
+const INLINE = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
+const UNDRAWN_BREAK = new RegExp(`<br\\s*\\/?>((?:\\s|<\\/(?:${INLINE})>|<(?:${INLINE})\\b(?![^>]*white-space)[^>]*>)*<\\/(?:p|div)>)`, 'gi');
+const dropUndrawnBreaks = (html) => html.replace(UNDRAWN_BREAK, '$1');
+// An inline element holding only zero-width characters draws nothing (Rangy's selection markers are also
+// display:none), so it is no part of any line. Written here independently of the converter, as browser semantics.
+const ZW_ONLY_ELEMENT =
+  /<(span|em|strong|i|b|u|s|strike|a)\b[^>]*>(?:[\uFEFF\u200B\u200C\u200D\u2060]|&#(?:x0*(?:feff|200b|200c|200d|2060)|0*(?:65279|8203|8204|8205|8288));)+<\/\1>/gi;
+const dropUndrawnElements = (html) => {
+  let current = html;
+  let next = current.replace(ZW_ONLY_ELEMENT, '');
+  while (next !== current) {
+    current = next;
+    next = current.replace(ZW_ONLY_ELEMENT, '');
+  }
+  return current;
+};
+// A paragraph with nothing a browser draws (no <br>, no text after entities are decoded, only collapsible spaces and
+// newlines, nothing under a white-space that keeps them) has no height in the old player, so it is no line
+// (midst-editor #169). Written here independently of the converter, as browser semantics: decoded text, not a regex
+// over tags.
+const undrawnParagraph = (inner) =>
+  !/<br\b/i.test(inner) && !/white-space\s*:/i.test(inner) && /^[ \n\r\f]*$/.test(decode(inner.replace(/<[^>]*>/g, '')));
+const dropUndrawnParagraphs = (html) => {
+  let current = html;
+  for (;;) {
+    const next = current.replace(/<p\b([^>]*)>((?:(?!<\/?p\b)[\s\S])*)<\/p>/gi, (m, attrs, inner) =>
+      !/white-space\s*:/i.test(attrs) && undrawnParagraph(inner) ? '' : m,
+    );
+    if (next === current) return current;
+    current = next;
+  }
+};
+// Inline content after a closed block is a line box of its own, as a browser draws it (midst-format #13): <p>a</p>x
+// is two lines, a and x, and <p>a</p><br>x is three (the <br> ends an empty one). So a run of it, up to the next
+// block, reads as its own paragraph, and the rules below then apply to it unchanged: a lone <br> there is still one
+// empty line, as it always was. A run of whitespace alone is no line, and is left to the rule below that drops it.
+const wrapLooseRuns = (html) =>
+  html.replace(/(<\/(?:p|div)>)((?:(?!<\/?(?:p|div)\b)[\s\S])+)/gi, (m, close, run) => (/\S/.test(run) ? `${close}<p>${run}</p>` : m));
 const textOf = (html, { editor = false } = {}) =>
   decode(
-    (editor ? html : dropUndrawnBreaks(html))
+    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnParagraphs(dropUndrawnElements(html)))))
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
