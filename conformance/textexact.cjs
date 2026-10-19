@@ -14,7 +14,11 @@ const decode = (s) =>
   });
 // A <br> that ends a paragraph or div is not drawn by a browser, so it is not a line. (Browser
 // semantics, so p AND div; the converter's own rule is p only, for the editor's sake.)
-const dropUndrawnBreaks = (html) => html.replace(/<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/(?:p|div)>)/gi, '$1');
+// What may follow it is anything that draws nothing: whitespace, and inline tags opening or closing with nothing in
+// them, <font>, <sup> and <sub> included (midst-editor #15); a tag that keeps its whitespace is never passed over.
+const INLINE = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub';
+const UNDRAWN_BREAK = new RegExp(`<br\\s*\\/?>((?:\\s|<\\/(?:${INLINE})>|<(?:${INLINE})\\b(?![^>]*white-space)[^>]*>)*<\\/(?:p|div)>)`, 'gi');
+const dropUndrawnBreaks = (html) => html.replace(UNDRAWN_BREAK, '$1');
 // An inline element holding only zero-width characters draws nothing (Rangy's selection markers are also
 // display:none), so it is no part of any line. Written here independently of the converter, as browser semantics.
 const ZW_ONLY_ELEMENT =

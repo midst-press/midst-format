@@ -100,11 +100,13 @@ const keptBlock = (source: string, lineNumber: string): number => {
 
 // A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
 // <p>a<br></p> is one line. ProseMirror draws the same <br> as a hard break plus a trailing line, so
-// every blank line of an old poem doubled. Drop exactly that one <br> (closing inline tags may follow
-// it); a second <br> before it is a real line and stays. Paragraphs only: an emptied <div> would lose
-// its line in the editor (measured by midst-format's render_lines, html-shape--div-as-line).
+// every blank line of an old poem doubled. Drop exactly that one <br>; a second <br> before it is a real line and
+// stays. What may follow it is anything that draws nothing: whitespace, and inline tags opening or closing with
+// nothing in them, <font>, <sup> and <sub> included (contenteditable writes <font> for colour and size), but never a
+// tag whose own style could give it a box or keep its whitespace (midst-editor #15). Paragraphs only: an emptied <div>
+// would lose its line in the editor (render_lines, html-shape--div-as-line), and <div> lines are still open (#15).
 const TRAILING_BREAK =
-  /<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/p>)/gi;
+  /<br\s*\/?>((?:\s|<\/(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)>|<(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)\b(?![^>]*[\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\w-]*\s*:)[^>]*>)*<\/p>)/gi;
 export const dropTrailingBreaks = (html: string) =>
   html.replace(TRAILING_BREAK, '$1');
 

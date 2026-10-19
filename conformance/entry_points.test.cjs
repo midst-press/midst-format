@@ -42,7 +42,7 @@ beforeAll(() => {
   // The zero-width set without U+2060: the harness would no longer mirror the converter.
   srcZeroWidth = srcTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));
   // The invisible-paragraph rule without <sub>: likewise.
-  srcInvisible = srcTree('invisible', same, (u) => u.replace('|font|sup|sub', '|font|sup'));
+  srcInvisible = srcTree('invisible', same, (u) => u.replace("const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup|sub'", "const INLINE_TAGS = 'em|strong|i|b|u|span|s|strike|a|font|sup'"));
   srcMissing = path.join(tmp, 'no-such-src');
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));

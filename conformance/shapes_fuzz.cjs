@@ -30,10 +30,9 @@ const comparableEditorLines = (...a) => require('./render_page.cjs').comparableE
 
 // Known open defects, each generated only under --open.
 const OPEN = {
-  font: 'midst-editor #15: a trailing <br> inside <font>/<sup>/<sub> still doubles',
-  divLine: 'midst-editor #15: a non-empty <div>a<br></div> still doubles',
+  divLine: 'midst-editor #15: a <div> line (<div><br></div>, <div>a<br></div>) does not draw the lines the browser did',
+  supSub: 'midst-editor #15: <sup> or <sub>, even empty, can make the editor show fewer lines than the browser',
   plainTab: 'midst-editor #17: a plain tab (not in a white-space: pre span) showed as one space in the old app',
-  hiddenAfterBr: 'midst-editor #15: a <br> followed only by invisible inline content (a selection marker, an empty or whitespace-only tag) is not drawn by a browser, but the converter keeps it',
 };
 
 const arg = (k, d) => {
@@ -80,7 +79,9 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 // line   {kind:'p', kids:[node], trailingBr:bool} | {kind:'blank'} | {kind:'div', kids, trailingBr}
 // node   {t:'word',s} {t:'sp',n} {t:'nbsp'} {t:'tabpre'} {t:'tab'} {t:'br'} {t:'mark'} {t:'nl'} {t:'wrap',tag,kids}
 const WRAPS = ['em', 'strong', 'i', 'b', 'u', 's', 'span'];
-const OPEN_WRAPS = ['font', 'sup', 'sub'];
+// <font>: contenteditable writes it for colour and size, and a trailing <br> inside it is handled (midst-editor #15).
+const MORE_WRAPS = ['font'];
+const OPEN_WRAPS = ['sup', 'sub'];
 let markId = 0;
 
 function genInline(r, depth) {
@@ -91,31 +92,17 @@ function genInline(r, depth) {
   if (k === 'word') return { t: 'word', s: Array.from({ length: 1 + r.int(5) }, () => r.pick('abcdefghij'.split(''))).join('') };
   if (k === 'sp') return { t: 'sp', n: 1 + r.int(3) };
   if (k === 'wrap') {
-    const tags = on('font') ? WRAPS.concat(OPEN_WRAPS) : WRAPS;
+    const tags = on('supSub') ? WRAPS.concat(MORE_WRAPS, OPEN_WRAPS) : WRAPS.concat(MORE_WRAPS);
     return { t: 'wrap', tag: r.pick(tags), kids: genKids(r, depth + 1, 1 + r.int(3)) };
   }
   return { t: k };
 }
 const genKids = (r, depth, n) => Array.from({ length: n }, () => genInline(r, depth));
 
-// A <br> followed, to the end of the line, only by invisible inline content (a marker, or a tag holding nothing
-// visible) is a trailing break the converter cannot see. Spaces alone are fine: its rule allows them.
-function brThenHidden(kids) {
-  const flat = [];
-  (function f(ks) {
-    for (const k of ks) {
-      if (k.t === 'wrap') flat.push('wrap'), f(k.kids);
-      else flat.push(k.t);
-    }
-  })(kids);
-  const tail = flat.slice(flat.lastIndexOf('br') + 1);
-  return flat.includes('br') && tail.every((t) => ['mark', 'sp', 'nl', 'wrap'].includes(t)) && tail.some((t) => t === 'mark' || t === 'wrap');
-}
 // Without --open, no line of an open class: not generated, and not reached by a mutation or a shrink step.
 function lineAllowed(l) {
   if (l.kind === 'blank') return true;
   if (!l.kids.length) return false;
-  if (!on('hiddenAfterBr') && brThenHidden(l.kids)) return false; // OPEN.hiddenAfterBr
   return true;
 }
 function genLine(r) {
@@ -385,9 +372,10 @@ async function main() {
   for (const k of OPEN_ON) console.log(`  open: ${k}  ${OPEN[k]}`);
   const R = await openRenderer();
   // Controls: a document of a known open class must FAIL and a plain one must PASS, or the checks are inert.
-  // A <br> then only a whitespace-only tag (hiddenAfterBr, still open). The selection-marker form of this case
-  // is fixed since midst-editor GitHub #31 (the converter drops zero-width-only elements), so it no longer fails.
-  const bad = { lines: [{ kind: 'p', kids: [{ t: 'br' }, { t: 'wrap', tag: 'em', kids: [{ t: 'sp', n: 1 }] }], trailingBr: false }], markFirst: false };
+  // A line holding only a plain tab (plainTab, still open, midst-editor #17): zero height in the old app, whose
+  // white-space is normal, and one line in the editor, which keeps tabs. (The control used to be a <br> then only a
+  // whitespace-only tag, which midst-editor #15 fixed.)
+  const bad = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: false }, { kind: 'p', kids: [{ t: 'tab' }], trailingBr: false }], markFirst: false };
   const good = { lines: [{ kind: 'p', kids: [{ t: 'word', s: 'a' }], trailingBr: true }, { kind: 'blank' }], markFirst: false };
   const cb = await check(appendCase(bad), R),
     cg = await check(appendCase(good), R);
