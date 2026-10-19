@@ -199,6 +199,11 @@ describe('a <br> that ends a paragraph', () => {
       '<p><em>zq</em></p>',
     ],
     ['every paragraph', '<p><br></p><p>zq<br></p>', '<p></p><p>zq</p>'],
+    // midst-editor #15
+    ['a break inside <font>', '<p><font color="red">zq<br></font></p>', '<p><font color="red">zq</font></p>'],
+    ['a break inside <sup> and <sub>', '<p><sup>zq<br></sup></p><p><sub><br></sub></p>', '<p><sup>zq</sup></p><p><sub></sub></p>'],
+    ['a break before an empty tag', '<p>zq<br><b></b></p>', '<p>zq<b></b></p>'],
+    ['a break before empty tags nested, with spaces', '<p>zq<br> <em><strong> </strong></em></p>', '<p>zq <em><strong> </strong></em></p>'],
   ])('is dropped from %s', (_name, html, expected) => {
     expect(dropTrailingBreaks(html)).toBe(expected);
   });
@@ -206,6 +211,8 @@ describe('a <br> that ends a paragraph', () => {
   it.each([
     ['a break between two lines of text', '<p>zq<br>xv</p>'],
     ['a <div>, which would lose its line', '<div>zq<br></div>'],
+    ['a tag that keeps its whitespace after it', '<p>zq<br><span style="white-space: pre"> </span></p>'],
+    ['text after it inside a tag', '<p>zq<br><em>xv</em></p>'],
   ])('is not what %s has, so it stays', (_name, html) => {
     expect(dropTrailingBreaks(html)).toBe(html);
   });

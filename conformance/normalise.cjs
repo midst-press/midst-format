@@ -16,9 +16,9 @@ const extensions = [
   }),
 ];
 // Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
-// TRAILING_BREAK mirrors midst-editor util.ts (provenance.cjs asserts the two regexes are identical):
+// TRAILING_BREAK mirrors convert.ts (provenance.cjs asserts the two regexes are identical):
 // a <br> that ends a paragraph is not a line, so the converter drops it before parsing.
-const TRAILING_BREAK = /<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/p>)/gi;
+const TRAILING_BREAK = /<br\s*\/?>((?:\s|<\/(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)>|<(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)\b(?![^>]*[\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\w-]*\s*:)[^>]*>)*<\/p>)/gi;
 const dropTrailingBreaks = (html) => html.replace(TRAILING_BREAK, '$1');
 // The zero-width rule mirrors midst-editor util.ts (its e91b01b, GitHub #31; provenance.cjs asserts the declarations
 // are identical): an inline element holding only zero-width characters (Rangy's display:none selection markers) is
