@@ -4,7 +4,7 @@ Stuart, 18 Oct 2026: consolidate the shared format library so both apps import o
 is the design. The moves follow it as separate PRs, each with zero behaviour change except where it
 says otherwise.
 
-## Today
+## Before the moves
 
 Measured at editor `d4e4876`, web `2e80f0e` and format `a1115b3`.
 
@@ -15,7 +15,7 @@ Measured at editor `d4e4876`, web `2e80f0e` and format `a1115b3`.
 | `convertMidstFile` and the version-header and meta helpers | `src/main/util.ts`, which also holds Electron glue | none                                                    | bundled from the editor checkout (`MIDST_EDITOR_SRC`, `build:harness`)   |
 | `follow.ts`, `buildLabel.ts`                               | `src/renderer/...`, `src/shared/...`               | byte-identical copies                                   | none                                                                     |
 
-How the copies are held together today:
+How the copies were held together then:
 
 - Web's `editor-helpers-identical` hook compares its copies byte for byte against a pinned editor commit.
 - Format's `provenance.cjs` compares the transcribed extension options and regexes against the editor.
@@ -25,6 +25,24 @@ How the copies are held together today:
 Every repo's lockfile resolves `@tiptap/*` to 2.5.4. Format's did so only from #53: until then, StarterKit's extensions, core and pm were nested in it at 2.27.3 (#52). Format holds it with `overrides` and `tools/one_tiptap.cjs`. Web and format pin it exactly in `package.json`, while
 the editor declares `^2.5.4`, which stage 2 pins. `prosemirror-*` differs between the editor (model 1.22.2) and web and
 format (model 1.25.12), and so does TypeScript (editor 5.5.3, web 4.6.3).
+
+## Now
+
+Measured at editor `cdf3003`, web `bc2b01c` and format `8b65218` (`v0.4.0`). Both apps vendor `v0.4.0`.
+
+| Code                                                       | Editor                                                        | Web                                | Format                               |
+| ---------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ------------------------------------ |
+| `ChangeObj`, `step`, `compareStrings`                      | imports `history`                                             | none                               | `src/history.ts`                     |
+| TipTap extension config                                    | imports `extensions`                                          | imports `extensions`               | `src/extensions.ts`                  |
+| `convertMidstFile` and the version-header and meta helpers | imports `convert`; `src/main/util.ts` keeps the Electron glue | none                               | `src/convert.ts`                     |
+| `follow.ts`, `buildLabel.ts`                               | imports `follow` and `build-label`                            | imports `follow` and `build-label` | `src/follow.ts`, `src/buildLabel.ts` |
+
+How they are held together now:
+
+- Each app commits the built package under `vendor/midst-format/`, with hashes in `VENDOR.md`. A pre-commit
+  hook and CI check the hashes, and CI rebuilds the tag and byte-compares it (see below).
+- Format's `provenance.cjs` compares the transcribed extension options and regexes against format's own `src/`.
+- Format CI builds the converter it tests from `src/convert.ts`. It no longer clones the editor.
 
 ## What the library holds
 
