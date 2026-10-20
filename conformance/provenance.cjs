@@ -43,7 +43,7 @@ const decl = (t, name) => {
   const end = t.indexOf(';\n', at);
   return end < 0 ? null : t.slice(at, end + 1).replace(/^export /, '').replace(/\s+/g, '');
 };
-for (const name of ['ZERO_WIDTH_CHARS', 'ZERO_WIDTH_ENTITY_CODES', 'ZERO_WIDTH_ENTITY', 'ZERO_WIDTH_ONLY_ELEMENT']) {
+for (const name of ['ZERO_WIDTH_CHARS', 'ZERO_WIDTH_ENTITY_CODES', 'ZERO_WIDTH_ENTITY', 'ZERO_WIDTH_ONLY_ELEMENT', 'ZERO_WIDTH_TAGS', 'NOT_HIDDEN', 'SHOWN_ZERO_WIDTH_ELEMENT', 'ZERO_WIDTH_LINE_FILL', 'SHOWN_ZERO_WIDTH_LINE']) {
   const u = decl(src, name), h = decl(mine, name);
   console.log(`${name} MATCH:`, !!u && u === h);
   if (!u || u !== h) mismatch('zero-width');
