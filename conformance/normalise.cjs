@@ -131,13 +131,18 @@ const asBrowserParsed = (html) => {
 };
 // The order matches convertMidstFile:
 // dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))).
-// The oracle's TipTap 2 writes a no-break space as the raw character; stored text writes it as &nbsp;, the HTML
-// standard (docs/LIBRARY.md). Mapped here, once, so every comparison with the converter is exact.
+// Stored text is HTML as the HTML standard serializes it (docs/LIBRARY.md). The oracle's TipTap 2 (zeed-dom) differs
+// in three characters of text (of &, <, >, ", ', U+00A0, tab and others probed, #102): a no-break space it writes raw, the standard as &nbsp;; " and ' it writes as &quot; and
+// &apos;, the standard raw. Mapped here, once, in text only (between tags), so every comparison is exact.
+const asStandardText = (html) =>
+  html
+    .replace(/\u00a0/g, '&nbsp;')
+    .replace(/(^|>)([^<]*)/g, (whole, open, text) => open + text.replace(/&quot;/g, '"').replace(/&apos;/g, "'"));
 const normalise = (html) =>
-  generateHTML(
+  asStandardText(generateHTML(
     generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))), extensions, {
       preserveWhitespace: true,
     }),
     extensions,
-  ).replace(/\u00a0/g, '&nbsp;');
+  ));
 module.exports = { extensions, normalise, asBrowserParsed, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };
