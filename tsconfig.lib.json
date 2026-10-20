@@ -9,7 +9,13 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": "src",
-    "types": []
+    "types": [],
+    "baseUrl": ".",
+    "paths": {
+      "@tiptap/html/server": [
+        "node_modules/@tiptap/html/dist/server/index.d.cts"
+      ]
+    }
   },
   "include": [
     "src/history.ts",

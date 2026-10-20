@@ -233,3 +233,11 @@ the rest of each app's text.
    lockfiles differ.
 2. **`follow.ts` and `buildLabel.ts`:** left under web's copy check (recommended), or moved into a second
    shared package later.
+
+## How stored text is serialized
+
+A frame's text, and every history entry's `inserted`, `front` and `end`, is HTML as the HTML standard's fragment
+serialization writes it (Stuart, 21 Oct 2026; #102). A non-breaking space is `&nbsp;`, as a browser's `innerHTML`, the
+editor's `getHTML` and TipTap 3's server build (happy-dom) all write it, never a raw U+00A0. History offsets count
+characters of that HTML, so they must not depend on which DOM library ran the conversion. Files converted under TipTap
+2 (zeed-dom) hold raw U+00A0; they render the same.

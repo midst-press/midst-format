@@ -86,7 +86,7 @@ describe("the built library", () => {
       path.join(dist, "convert", "index.cjs"),
       "utf8",
     );
-    expect(cjs).toContain('require("@tiptap/html")');
+    expect(cjs).toContain('require("@tiptap/html/server")');
     expect(
       fs.readFileSync(path.join(dist, "extensions", "index.mjs"), "utf8"),
     ).toContain('from "@tiptap/starter-kit"');

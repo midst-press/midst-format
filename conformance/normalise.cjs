@@ -1,7 +1,12 @@
 // TRANSCRIBED VERBATIM from jshafto/midst-app src/main/util.ts lines 11-23.
 // provenance.cjs asserts this matches the source bytes; if the source changes, the assert fails.
-const { generateJSON, generateHTML } = require('@tiptap/html');
-const StarterKit = require('@tiptap/starter-kit').default || require('@tiptap/starter-kit');
+// TipTap comes from conformance/oracle/, its own package at 2.5.4, the version the old app ran: this file models the
+// old app, so it must not move with the library (now on TipTap 3, #102). Run `npm ci --prefix conformance/oracle` first.
+const oracle = require('module').createRequire(require('path').join(__dirname, 'oracle', 'package.json'));
+const { generateJSON, generateHTML } = oracle('@tiptap/html');
+const StarterKit = oracle('@tiptap/starter-kit').default || oracle('@tiptap/starter-kit');
+const HardBreak = oracle('@tiptap/extension-hard-break').default || oracle('@tiptap/extension-hard-break');
+// The option set mirrors src/extensions.ts (provenance.cjs). Under TipTap 2 the options TipTap 3 added are no-ops.
 const extensions = [
   StarterKit.configure({
     bulletList: false,
@@ -12,8 +17,14 @@ const extensions = [
     heading: false,
     horizontalRule: false,
     listItem: false,
+    hardBreak: false,
     strike: false,
+    link: false,
+    underline: false,
+    listKeymap: false,
+    trailingNode: false,
   }),
+  HardBreak.extend({ linebreakReplacement: false }),
 ];
 // Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
 // TRAILING_BREAK mirrors convert.ts (provenance.cjs asserts the two regexes are identical):

@@ -1,5 +1,7 @@
 /* eslint import/prefer-default-export: off */
-import { generateJSON, generateHTML } from '@tiptap/html';
+// The converter runs in Node (the editor's main process, the conformance tools), so it takes TipTap 3's server build,
+// which parses with happy-dom (#102). The default entry is the browser's and refuses to run outside one.
+import { generateJSON, generateHTML } from '@tiptap/html/server';
 import { getSchema } from '@tiptap/core';
 import { parse, serializeOuter } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
