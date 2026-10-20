@@ -72,14 +72,15 @@ const dropInvisibleParagraphs = (html) => {
 // standard's tree construction, so a stray closing tag no longer ends the parse.
 const { parse, serializeOuter } = require('parse5');
 // Mirrors convert.ts's asParagraphLines: each top-level line a browser draws, written as a <p> (midst-editor #15).
-const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'blockquote', 'pre', 'table']);
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'dl', 'dt', 'dd', 'blockquote', 'pre', 'table', 'hr', 'address', 'article', 'aside', 'details', 'fieldset', 'figure', 'figcaption', 'footer', 'form', 'header', 'main', 'nav', 'section']);
 const isBlock = (n) => BLOCK_TAGS.has(n.nodeName);
 const isBlankText = (n) => n.nodeName === '#text' && /^[ \n\r\t\f]*$/.test(n.value);
+const drawsNothing = (n) => isBlankText(n) || n.nodeName === '#comment';
 const asParagraphLines = (nodes) => {
   let out = '';
   let run = [];
   const flush = () => {
-    if (run.length > 0 && !run.every(isBlankText)) out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
+    if (run.length > 0 && !run.every(drawsNothing)) out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
     else out += run.map((n) => serializeOuter(n)).join('');
     run = [];
   };

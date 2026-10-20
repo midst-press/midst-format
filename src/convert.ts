@@ -67,11 +67,13 @@ const endOfBlock = (
 // after it (midst-format #78). Here a stray </div> or </span> is ignored and a stray </p> becomes an empty <p></p>,
 // a <p> opened inside a <p> closes the first, and the regex passes below see the browser's tree, not the file's.
 // The elements a browser lays out as a line of their own; anything else at the top level is inline content.
-const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'blockquote', 'pre', 'table']);
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'dl', 'dt', 'dd', 'blockquote', 'pre', 'table', 'hr', 'address', 'article', 'aside', 'details', 'fieldset', 'figure', 'figcaption', 'footer', 'form', 'header', 'main', 'nav', 'section']);
 type Parse5Node = DefaultTreeAdapterMap['childNode'];
 const isBlock = (n: Parse5Node) => BLOCK_TAGS.has(n.nodeName);
 const isBlankText = (n: Parse5Node) =>
   n.nodeName === '#text' && 'value' in n && /^[ \n\r\t\f]*$/.test(n.value);
+// A comment draws nothing: `<!--StartFragment-->`, left by a paste from a word processor, is no line (clement-7074f29f).
+const drawsNothing = (n: Parse5Node) => isBlankText(n) || n.nodeName === '#comment';
 // The top level as the lines a browser draws, each made a <p>: a run of inline content between blocks is an
 // anonymous line, and a <div> holding no block is a line. TipTap makes a paragraph of each already, so the number of
 // blocks is unchanged; written as <p>, the paragraph rules (dropTrailingBreaks, dropInvisibleParagraphs) reach them:
@@ -80,7 +82,7 @@ const asParagraphLines = (nodes: Parse5Node[]): string => {
   let out = '';
   let run: Parse5Node[] = [];
   const flush = () => {
-    if (run.length > 0 && !run.every(isBlankText))
+    if (run.length > 0 && !run.every(drawsNothing))
       out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
     else out += run.map((n) => serializeOuter(n)).join('');
     run = [];

@@ -575,6 +575,11 @@ describe('the top-level lines', () => {
     ['<div><br></div> is one blank line', 'zq<div><br></div>', '<p>zq</p><p></p>'],
     ['a <div> line keeps its words and drops its last <br>', 'zq<div>xv<br></div>', '<p>zq</p><p>xv</p>'],
     ['a styled <div> line too', '<div style="color: red">zq<br></div>', '<p>zq</p>'],
+    // A comment draws nothing, alone or with whitespace (clement-7074f29f, review of #84).
+    ['a comment between paragraphs is no line', '<p>zq</p><!--StartFragment--><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a comment with whitespace is no line', '<p>zq</p>\n<!-- c -->\n<p>xv</p>', '<p>zq</p><p>xv</p>'],
+    // A block outside the poem's schema is left as main left it, not made a line (cyril-9137f1ee, review of #84).
+    ['an <hr> between paragraphs is left as before', '<p>zq</p><hr><p>xv</p>', '<p>zq</p><p>xv</p>'],
     ['whitespace between blocks is no line (so before #15 too: a guard)', '<p>zq</p> <p>xv</p>', '<p>zq</p><p>xv</p>'],
   ])('%s', (_, frame, expected) => {
     expect(convertFrame(frame)).toBe(expected);
