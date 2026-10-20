@@ -39,9 +39,11 @@ const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
 const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
 const ZERO_WIDTH_LINE_FILL = `[ \\n\\r\\f]|<(?:${ZERO_WIDTH_TAGS})\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>|<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>|</(?:${ZERO_WIDTH_TAGS})>`;
 const SHOWN_ZERO_WIDTH_LINE = new RegExp(
-  `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
+  `(<p\\b[^>]*>)((?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*)(</p>)`,
   'gi'
 );
+// What such a line keeps: its whitespace, without the tags and zero-width characters around it (#98).
+const ZERO_WIDTH_OR_TAG = new RegExp(`<[^>]*>|[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY}`, 'gi');
 // A hidden inline element left empty, e.g. a Rangy marker whose FEFF a bold command had wrapped in <b>, once that
 // <b> is removed, perhaps still holding empty inline tags: display:none draws nothing, so it goes too, and the paragraph
 // rule can then see what is left (#88). Never past a closing tag of its own name, so no stray closing tag is left.
@@ -50,7 +52,11 @@ const EMPTY_HIDDEN_ELEMENT = new RegExp(
   'gi'
 );
 const dropZeroWidthOnlyElements = (html) => {
-  let current = html.replace(SHOWN_ZERO_WIDTH_LINE, '$1<br>$2');
+  let current = html.replace(
+    SHOWN_ZERO_WIDTH_LINE,
+    (_m, open, fill, close) =>
+      `${open}${fill.replace(ZERO_WIDTH_OR_TAG, '')}<br>${close}`
+  );
   let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   while (next !== current) {
     current = next;
