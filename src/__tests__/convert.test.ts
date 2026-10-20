@@ -408,6 +408,36 @@ describe('a selection marker left in an old file', () => {
   ])('is not removed with %s', (_name, html) => {
     expect(dropZeroWidthOnlyElements(html)).toBe(html);
   });
+
+  // #71: without display:none the element is drawn, so a paragraph holding only such elements was a line in the old
+  // player (a browser draws the zero-width character's line box). It stays a blank line, without the character.
+  const HIDDEN = '<span class="rangySelectionBoundary" style="line-height: 0; display: none;">&#xFEFF;</span>';
+  it.each([
+    ['a shown zero-width span', '<p><span>&#x200B;</span></p>'],
+    ['Rangy’s class without display:none, which a browser draws', '<p><span class="rangySelectionBoundary">&#xFEFF;</span></p>'],
+    ['a shown one wrapped in a shown one', '<p><span><span>&#xFEFF;</span></span></p>'],
+    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`],
+    ['an attribute on the paragraph', '<p data-line-number="2"><span>&#x200B;</span></p>'],
+  ])('keeps a paragraph holding only %s as a blank line', (_name, html) => {
+    expect(dropZeroWidthOnlyElements(`<p>zq</p>${html}<p>xv</p>`)).toMatch(
+      /^<p>zq<\/p><p\b[^>]*><br><\/p><p>xv<\/p>$/
+    );
+  });
+
+  it.each([
+    ['a hidden marker alone', `<p>${HIDDEN}</p>`, '<p></p>'],
+    ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p><em style="display:none"></em></p>'],
+    ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
+    ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
+  ])('leaves no line for %s, as before', (_name, html, out) => {
+    expect(dropZeroWidthOnlyElements(html)).toBe(out);
+  });
+
+  it('a paragraph holding only a shown one stays a blank line through the whole conversion', () => {
+    const c = convert([`<p>zq</p><p><span>&#x200B;</span></p><p>${HIDDEN}</p><p>xv</p>`]);
+    expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
+  });
 });
 
 // midst-editor #169: a paragraph with nothing a browser draws had no height in the old player (its only paragraph
