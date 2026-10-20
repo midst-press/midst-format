@@ -612,3 +612,45 @@ describe('a hidden marker emptied by the zero-width rule', () => {
     expect(convertFrame(frame)).toBe(expected);
   });
 });
+
+// The recorded line is found by data-line-number when exactly one <p> carries it (midst-format #69): the old editor
+// renumbered only when the count of <p> changed, so after paragraphs moved an index named the wrong line.
+describe('pos: the recorded line, by its data-line-number', () => {
+  const posOf = (content: string, lineNumber?: unknown) => {
+    const frame: Record<string, unknown> = { content, timestamp: 1 };
+    if (lineNumber !== undefined) frame.lineNumber = lineNumber;
+    return JSON.parse(convertMidstFile(JSON.stringify({ editorTimelineFrames: [frame] }))).history[0].pos;
+  };
+  const MOVED = '<p data-line-number="0">zq</p><p data-line-number="2">xv</p><p data-line-number="1">wy</p>';
+  const TWO = '<p data-line-number="0">zq</p><p data-line-number="1">xv</p>';
+
+  it('is the end of the paragraph numbered 1, the third, not the second', () => {
+    expect(posOf(MOVED, '1')).toBe(11); // <p>zq</p><p>xv</p><p>wy</p>: the end of "wy"
+  });
+  it('maps a numbered paragraph that is dropped to the last kept one before it', () => {
+    // Numbered 2 is the second <p>, and empty, so it maps to "zq"; index 2 would have given "xv" (7).
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="2"></p><p data-line-number="1">xv</p><p data-line-number="3">wy</p>', '2')).toBe(3);
+  });
+  it('counts past a dropped paragraph before the numbered one', () => {
+    // The archive's commonest shape (#96 review): an empty <p> before the recorded line. Numbered 3 is "wy", the third
+    // converted line; a dropped paragraph's mark read as the target's gave "xv" (7).
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3">wy</p>', '3')).toBe(11);
+  });
+  it('counts past a dropped paragraph before a numbered blank line', () => {
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3"><br></p>', '3')).toBe(9);
+  });
+  it('falls back to the index when two paragraphs carry the number', () => {
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1">xv</p><p data-line-number="1">wy</p>', '1')).toBe(7);
+  });
+  it('falls back to the index when no paragraph is numbered', () => {
+    expect(posOf('<p>zq</p><p>xv</p><p>wy</p>', '2')).toBe(11);
+  });
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['blank', ''],
+    ['spaces', '  '],
+  ])('names no line when lineNumber is %s', (_, lineNumber) => {
+    expect(posOf(TWO, lineNumber)).toBe(0);
+  });
+});
