@@ -1,4 +1,22 @@
 {
+  "#01": {
+    "frames": 4397,
+    "badFrames": 0,
+    "textBad": 935,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
+  "#02": {
+    "frames": 4346,
+    "badFrames": 0,
+    "textBad": 286,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
+  "#07": {
+    "frames": 10061,
+    "badFrames": 0,
+    "textBad": 9316,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
   "#13": {
     "frames": 5973,
     "badFrames": 0,
@@ -29,6 +47,12 @@
     "textBad": 5058,
     "why": "U+2029 line separators (midst-editor #15, open), and one frame recorded on 11 Oct (#15)"
   },
+  "#32": {
+    "frames": 3338,
+    "badFrames": 0,
+    "textBad": 2642,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
   "#38": {
     "frames": 2822,
     "badFrames": 0,
@@ -41,10 +65,22 @@
     "textBad": 9030,
     "why": "U+2029 line separators only: midst-editor #15, open"
   },
+  "#41": {
+    "frames": 972,
+    "badFrames": 0,
+    "textBad": 697,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
   "#44": {
     "frames": 1658,
     "badFrames": 0,
     "textBad": 1,
     "why": "U+2029 line separators only: midst-editor #15, open"
+  },
+  "#47": {
+    "frames": 8889,
+    "badFrames": 0,
+    "textBad": 1,
+    "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
   }
 }
