@@ -44,8 +44,8 @@
   "#28": {
     "frames": 11374,
     "badFrames": 0,
-    "textBad": 5058,
-    "why": "U+2029 line separators (midst-editor #15, open), and one frame recorded on 11 Oct (#15)"
+    "textBad": 5057,
+    "why": "U+2029 line separators (midst-editor #15, open), and one frame recorded on 11 Oct (#15). 5058 -> 5057 at #79's head (Violet's run, 20 Oct); which change moved it is not yet established"
   },
   "#32": {
     "frames": 3338,
