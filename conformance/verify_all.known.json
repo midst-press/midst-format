@@ -45,7 +45,7 @@
     "frames": 11374,
     "badFrames": 0,
     "textBad": 5057,
-    "why": "U+2029 line separators (midst-editor #15, open), and one frame recorded on 11 Oct (#15). 5058 -> 5057 at #79's head (Violet's run, 20 Oct); which change moved it is not yet established"
+    "why": "U+2029 line separators (midst-editor #15, open). 5058 at #73's head (c636f16), 5057 at main 09e8432 and at #79 (Violet's runs, 20 Oct): the one extra frame went on main. #76 changed textexact's zero-width reading and left the archive's conversion byte-identical, so most likely the check moved, not the poem; not bisected"
   },
   "#32": {
     "frames": 3338,
