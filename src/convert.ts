@@ -126,17 +126,69 @@ const frameJSON = (html: string) =>
     preserveWhitespace: true,
   });
 
+// A private-use character, lengthened until neither the frame nor its text (character references decoded) contains
+// it, nor `other`: every block that reads as it, or starts with it, is one this file put there.
+const freshMark = (source: string, text: string, other = ''): string => {
+  let mark = '\uE000';
+  while (source.includes(mark) || text.includes(mark) || (other !== '' && other.includes(mark))) mark += '\uE000';
+  return mark;
+};
+
+// The converted block of the one <p> whose data-line-number is `line`, or undefined when no <p> or more than one
+// carries it. The <p> is marked by a private-use character at the start of its content, and the paragraphs
+// dropInvisibleParagraphs removes are marked as in keptBlock, so one parse gives the kept blocks before it. When that
+// <p> is itself one that is removed, the line maps to the last kept block before it, as keptBlock maps an index.
+const NUMBERED_P = /<p\b[^>]*?\sdata-line-number="([^"]*)"[^>]*>/gi;
+const numberedBlock = (source: string, line: number): number | undefined => {
+  const hits: RegExpExecArray[] = [];
+  NUMBERED_P.lastIndex = 0; // the library targets ES2019: no String.prototype.matchAll
+  for (let m = NUMBERED_P.exec(source); m !== null; m = NUMBERED_P.exec(source))
+    if (m[1].trim() !== '' && Number(m[1]) === line) hits.push(m);
+  if (hits.length !== 1) return undefined;
+  const open = hits[0];
+  const at = open.index + open[0].length;
+  const end = source.indexOf('</p>', at);
+  if (end < 0) return undefined;
+  const paragraph = source.slice(open.index, end + 4);
+  const invisible = dropInvisibleParagraphs(paragraph) === '';
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
+  const target = freshMark(source, text);
+  const dropped = freshMark(source, text, target);
+  const withTarget = invisible
+    ? `${source.slice(0, open.index)}<p>${target}</p>${source.slice(end + 4)}`
+    : `${source.slice(0, at)}${target}${source.slice(at)}`;
+  const doc = schema.nodeFromJSON(frameJSON(markInvisibleParagraphs(withTarget, dropped)));
+  let kept = 0;
+  for (let i = 0; i < doc.childCount; i += 1) {
+    const t = doc.child(i).textContent;
+    if (t.startsWith(target)) return invisible ? kept - 1 : kept;
+    if (t !== dropped) kept += 1;
+  }
+  return undefined; // the mark did not survive the parse: the index is used instead
+};
+
 // The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
 // document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
 // itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
 // against the frame's blocks as the old player had them. The selection markers are already gone, and were never
 // counted: the old editor's lineNumber is the data-line-number of the <p> holding the selection, numbered over the
 // editor's <p> elements (reflowLineNumbers and captureTimelineFrame in the old player's source, kept in midst-web as
-// e2e/legacy-player/Midst.ts), and a marker is a <span>. Returns the block index in the converted
-// document, or -1 for none.
-const keptBlock = (source: string, lineNumber: string): number => {
+// e2e/legacy-player/Midst.ts, where both are commented out because that player does not record), and a marker is a
+// <span>. Returns the block index in the converted document, or -1 for none.
+//
+// A recorded line is found by that attribute when exactly one <p> carries it (227,271 of the archive's 233,233
+// frames, midst-format #69): the old editor renumbered only when the count of <p> changed, so an index can name the
+// wrong line after paragraphs moved. With no such <p>, or more than one, the index is used as before. A missing,
+// null or blank lineNumber names no line (Number() would read null and '' as 0).
+const keptBlock = (source: string, lineNumber: unknown): number => {
+  const blank =
+    lineNumber === undefined ||
+    lineNumber === null ||
+    (typeof lineNumber === 'string' && lineNumber.trim() === '');
   const line = Number(lineNumber);
-  if (!Number.isFinite(line) || line < 0) return -1;
+  if (blank || !Number.isFinite(line) || line < 0) return -1;
+  const numbered = numberedBlock(source, Math.floor(line));
+  if (numbered !== undefined) return numbered;
   if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
   // A private-use character, lengthened until neither the frame nor its text (character references decoded)
   // contains it, so every block that reads as the mark is a <p>mark</p> this function put there.
