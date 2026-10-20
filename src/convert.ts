@@ -128,9 +128,9 @@ const frameJSON = (html: string) =>
 
 // A private-use character, lengthened until neither the frame nor its text (character references decoded) contains
 // it, nor `other`: every block that reads as it, or starts with it, is one this file put there.
-const freshMark = (source: string, text: string, other = ''): string => {
-  let mark = '\uE000';
-  while (source.includes(mark) || text.includes(mark) || (other !== '' && other.includes(mark))) mark += '\uE000';
+const freshMark = (source: string, text: string, other = '', base = '\uE000'): string => {
+  let mark = base;
+  while (source.includes(mark) || text.includes(mark) || (other !== '' && other.includes(mark))) mark += base;
   return mark;
 };
 
@@ -153,7 +153,7 @@ const numberedBlock = (source: string, line: number): number | undefined => {
   const invisible = dropInvisibleParagraphs(paragraph) === '';
   const text = schema.nodeFromJSON(frameJSON(source)).textContent;
   const target = freshMark(source, text);
-  const dropped = freshMark(source, text, target);
+  const dropped = freshMark(source, text, target, '\uE001'); // a different character, so neither mark starts the other
   const withTarget = invisible
     ? `${source.slice(0, open.index)}<p>${target}</p>${source.slice(end + 4)}`
     : `${source.slice(0, at)}${target}${source.slice(at)}`;
@@ -161,8 +161,10 @@ const numberedBlock = (source: string, line: number): number | undefined => {
   let kept = 0;
   for (let i = 0; i < doc.childCount; i += 1) {
     const t = doc.child(i).textContent;
+    // A dropped paragraph is checked first: its mark must never be read as the target's.
+    if (t === dropped) continue;
     if (t.startsWith(target)) return invisible ? kept - 1 : kept;
-    if (t !== dropped) kept += 1;
+    kept += 1;
   }
   return undefined; // the mark did not survive the parse: the index is used instead
 };

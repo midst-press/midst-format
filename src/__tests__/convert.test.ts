@@ -631,6 +631,14 @@ describe('pos: the recorded line, by its data-line-number', () => {
     // Numbered 2 is the second <p>, and empty, so it maps to "zq"; index 2 would have given "xv" (7).
     expect(posOf('<p data-line-number="0">zq</p><p data-line-number="2"></p><p data-line-number="1">xv</p><p data-line-number="3">wy</p>', '2')).toBe(3);
   });
+  it('counts past a dropped paragraph before the numbered one', () => {
+    // The archive's commonest shape (#96 review): an empty <p> before the recorded line. Numbered 3 is "wy", the third
+    // converted line; a dropped paragraph's mark read as the target's gave "xv" (7).
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3">wy</p>', '3')).toBe(11);
+  });
+  it('counts past a dropped paragraph before a numbered blank line', () => {
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3"><br></p>', '3')).toBe(9);
+  });
   it('falls back to the index when two paragraphs carry the number', () => {
     expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1">xv</p><p data-line-number="1">wy</p>', '1')).toBe(7);
   });
