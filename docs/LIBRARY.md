@@ -157,7 +157,8 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 4. **Format: remove the editor build path.** That is `MIDST_EDITOR_SRC`, the CI editor clone and
    `provenance.cjs`, which the stage 1 dual build makes safe to drop. Close editor #23.
    **Done.** The harness builds from `src/convert.ts` and format CI no longer clones the editor or runs
-   `verbatim`. `provenance.cjs` stays, now comparing `normalise.cjs` with `src/extensions.ts` and
+   `verbatim`. `tools/verbatim.mjs` is retired (#50): the code has changed since the move (`v0.4.0`), so it no
+   longer matches the editor's at the move commit, and nothing is transcribed any more. `provenance.cjs` stays, now comparing `normalise.cjs` with `src/extensions.ts` and
    `src/convert.ts`. `src/MOVED_FROM.json` remains as the record of where the code came from.
 5. **Then the fixes**, #169, #15 and format #36, in the library as `v0.4.0` (the player helpers took `v0.3.0`). Each app takes them by a
    vendoring PR, and then there is one reconversion. The reconversion, the release and the deploy are
