@@ -58,10 +58,22 @@ const dropInvisibleParagraphs = (html) => {
   }
   return current;
 };
-// The order matches convertMidstFile: dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(html))).
+// The frame as a browser parsed it, mirroring convert.ts's asBrowserParsed (midst-format #78): parse5, the HTML
+// standard's tree construction, so a stray closing tag no longer ends the parse.
+const { parse, serialize } = require('parse5');
+const asBrowserParsed = (html) => {
+  const htmlEl = parse(`<!DOCTYPE html><body>${html}`).childNodes.find((n) => n.nodeName === 'html');
+  const body = htmlEl && htmlEl.childNodes.find((n) => n.nodeName === 'body');
+  if (!body) throw new Error('parse5 returned a document with no <body>');
+  return serialize(body);
+};
+// The order matches convertMidstFile:
+// dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))).
 const normalise = (html) =>
   generateHTML(
-    generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(html))), extensions, { preserveWhitespace: true }),
+    generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))), extensions, {
+      preserveWhitespace: true,
+    }),
     extensions,
   );
-module.exports = { extensions, normalise, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };
+module.exports = { extensions, normalise, asBrowserParsed, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };
