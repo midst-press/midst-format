@@ -6,9 +6,6 @@
 // printed line has neither. Never a slice of a frame, never an entry name from inside
 // the zip (some are poem titles), never an exception's message (JSON.parse quotes its input). These
 // rows are written to VERIFICATION.json and printed, and a workflow publishes the printed lines.
-// The converter writes a non-breaking space as &nbsp;, as the HTML standard serializes it; the oracle, on TipTap 2
-// (zeed-dom), writes U+00A0. The same character either way, so it is compared that way, and nothing else is (#102).
-const sameNbsp = (html) => html.replace(/\u00a0/g, '&nbsp;');
 const fs = require('fs'),
   path = require('path'),
   os = require('os'),
@@ -126,7 +123,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
       const exp = normalise(frames[i].content);
       // Independent of the converter's parse: the characters of the SOURCE frame against the replay.
       if (textOf(acc, { editor: true }) !== textOf(frames[i].content)) textBad++;
-      if (sameNbsp(acc) !== sameNbsp(exp)) {
+      if (acc !== exp) {
         bad++;
         // Lengths and hashes let two local runs be compared. They go to VERIFICATION.json only and are
         // never printed: an unkeyed hash beside an exact length can be brute-forced for a short frame,
@@ -143,7 +140,7 @@ function verifyZip(zip, index, { convertMidstFile, normalise, outDir }) {
         b2 = 0;
       for (let i = 0; i < h.length; i++) {
         a2 = step(a2, h[i]);
-        if (sameNbsp(a2) !== sameNbsp(normalise(frames[i].content))) b2++;
+        if (a2 !== normalise(frames[i].content)) b2++;
       }
       control = b2 > 0;
     }

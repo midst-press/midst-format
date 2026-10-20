@@ -6,7 +6,13 @@
     "rootDir": "src",
     "types": ["jest", "node"],
     "target": "es2021",
-    "lib": ["es2021", "dom"]
+    "lib": ["es2021", "dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@tiptap/html/server": [
+        "node_modules/@tiptap/html/dist/server/index.d.cts"
+      ]
+    }
   },
   "include": ["src"]
 }

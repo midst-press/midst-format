@@ -86,7 +86,8 @@ describe("the built library", () => {
       path.join(dist, "convert", "index.cjs"),
       "utf8",
     );
-    expect(cjs).toContain('require("@tiptap/html/server")');
+    expect(cjs).toContain('require("@tiptap/pm/model")');
+    expect(cjs).toContain('require("happy-dom")');
     expect(
       fs.readFileSync(path.join(dist, "extensions", "index.mjs"), "utf8"),
     ).toContain('from "@tiptap/starter-kit"');
@@ -133,12 +134,15 @@ describe("the built library", () => {
     });
     expect(pkg.peerDependencies).toEqual({
       "@tiptap/core": rootPkg.dependencies["@tiptap/core"],
-      "@tiptap/html": rootPkg.dependencies["@tiptap/html"],
+      "@tiptap/extension-hard-break":
+        rootPkg.dependencies["@tiptap/extension-hard-break"],
+      "@tiptap/pm": rootPkg.dependencies["@tiptap/pm"],
       "@tiptap/starter-kit": rootPkg.dependencies["@tiptap/starter-kit"],
+      "happy-dom": rootPkg.dependencies["happy-dom"],
     });
-    // Only @tiptap/html is optional: the other two are needed by `extensions`, which web takes.
+    // Only happy-dom is optional: the others are needed by `extensions`, which web takes.
     expect(pkg.peerDependenciesMeta).toEqual({
-      "@tiptap/html": { optional: true },
+      "happy-dom": { optional: true },
     });
     expect(Object.keys(pkg.exports)).toEqual([
       "./history",

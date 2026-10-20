@@ -49,18 +49,18 @@ How they are held together now:
 The pure code only. Nothing that touches Electron, the store or the file system. Only `follow` touches the DOM:
 it scrolls the element it is given; see _The player helpers_ below.
 
-| Entry point                             | Contents                                                                                                                                                                                                                 | Depends on                                                         |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `@midst-press/midst-format/history`     | the whole of the editor's `tracking/utils.ts`: `ChangeObj`, `step`, `compareStrings`, `reconstruct`, `reconstructArray`, `reconstructHTML`                                                                               | nothing                                                            |
-| `@midst-press/midst-format/extensions`  | `poemExtensions` (the StarterKit config)                                                                                                                                                                                 | `@tiptap/starter-kit` (peer)                                       |
-| `@midst-press/midst-format/convert`     | `convertMidstFile`, `getFileVersion`, `stripVersionInfo`, `includeVersionInfo`, `fileVersionMatchesCurrent`, `serializeDocument`, `metaFromOldMidst`, and the trailing-break, zero-width and invisible-paragraph helpers | `history`, `extensions`, `@tiptap/html` and `@tiptap/core` (peers) |
-| `@midst-press/midst-format/follow`      | the whole of the editor's `Replay/follow.ts`: `scrollParent`, `targetScrollTop`, `glideMs`, `glideTo`, `gliding` and their constants                                                                                     | nothing                                                            |
-| `@midst-press/midst-format/build-label` | the whole of the editor's `shared/buildLabel.ts`: `buildLabel`, `isPreRelease`, `utcMinute`, `BuildIdentity`                                                                                                             | nothing                                                            |
+| Entry point                             | Contents                                                                                                                                                                                                                 | Depends on                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `@midst-press/midst-format/history`     | the whole of the editor's `tracking/utils.ts`: `ChangeObj`, `step`, `compareStrings`, `reconstruct`, `reconstructArray`, `reconstructHTML`                                                                               | nothing                                                                                             |
+| `@midst-press/midst-format/extensions`  | `poemExtensions` (the StarterKit config)                                                                                                                                                                                 | `@tiptap/starter-kit` and `@tiptap/extension-hard-break` (peers)                                    |
+| `@midst-press/midst-format/convert`     | `convertMidstFile`, `getFileVersion`, `stripVersionInfo`, `includeVersionInfo`, `fileVersionMatchesCurrent`, `serializeDocument`, `metaFromOldMidst`, and the trailing-break, zero-width and invisible-paragraph helpers | `history`, `extensions`, `@tiptap/core`, `@tiptap/pm` and `happy-dom` (peers; `happy-dom` optional) |
+| `@midst-press/midst-format/follow`      | the whole of the editor's `Replay/follow.ts`: `scrollParent`, `targetScrollTop`, `glideMs`, `glideTo`, `gliding` and their constants                                                                                     | nothing                                                                                             |
+| `@midst-press/midst-format/build-label` | the whole of the editor's `shared/buildLabel.ts`: `buildLabel`, `isPreRelease`, `utcMinute`, `BuildIdentity`                                                                                                             | nothing                                                                                             |
 
-The entry points are separate so web can take `extensions` without pulling in `@tiptap/html`, which it
+The entry points are separate so web can take `extensions` without pulling in `happy-dom`, which it
 does not depend on. Web uses nothing from `history`: at web `2e80f0e`, the only importer of its
 `helpers.ts` copy is the copied test (clement-7074f29f). TipTap is a peer dependency: each app keeps its own pinned
-2.5.4, and nothing is bundled twice.
+3.32.0, and nothing is bundled twice.
 
 What stays in the editor: `loadDataIntoWorkspace`, `resolveHtmlPath`, `writeConvertedFile` and the menu
 code, which are the Electron and file-system glue around the library.
@@ -238,6 +238,6 @@ the rest of each app's text.
 
 A frame's text, and every history entry's `inserted`, `front` and `end`, is HTML as the HTML standard's fragment
 serialization writes it (Stuart, 21 Oct 2026; #102). A non-breaking space is `&nbsp;`, as a browser's `innerHTML`, the
-editor's `getHTML` and TipTap 3's server build (happy-dom) all write it, never a raw U+00A0. History offsets count
+editor's `getHTML` and the converter's happy-dom all write it, never a raw U+00A0. History offsets count
 characters of that HTML, so they must not depend on which DOM library ran the conversion. Files converted under TipTap
 2 (zeed-dom) hold raw U+00A0; they render the same.

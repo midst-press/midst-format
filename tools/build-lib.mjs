@@ -20,7 +20,13 @@ const SOURCE = { "build-label": "buildLabel" };
 export const sourceOf = (name) => SOURCE[name] ?? name;
 // Entries another entry imports. They stay external, so their code exists once.
 const INTERNAL = ["history", "extensions"];
-const PEERS = ["@tiptap/core", "@tiptap/html", "@tiptap/starter-kit"];
+const PEERS = [
+  "@tiptap/core",
+  "@tiptap/extension-hard-break",
+  "@tiptap/pm",
+  "@tiptap/starter-kit",
+  "happy-dom",
+];
 const FORMATS = [
   { format: "cjs", file: "index.cjs" },
   { format: "esm", file: "index.mjs" },
@@ -101,7 +107,7 @@ async function bundle(outDir, name, { format, file }) {
     target: "es2019",
     sourcemap: false,
     legalComments: "none",
-    external: ["@tiptap/*"],
+    external: ["@tiptap/*", "happy-dom"],
     plugins: [internalImports(file)],
     // Warnings and errors are thrown below, so none is lost to a stream nobody reads.
     logLevel: "silent",
@@ -183,9 +189,9 @@ export async function buildLib(outDir) {
         version: rootPackage.version,
         private: true,
         peerDependencies,
-        // Only `convert` needs @tiptap/html. Optional, so an app that takes `history` and `extensions` (web)
+        // Only `convert` needs happy-dom. Optional, so an app that takes `history` and `extensions` (web)
         // is not given it by npm, which installs every required peer (clement-7074f29f, review of #54).
-        peerDependenciesMeta: { "@tiptap/html": { optional: true } },
+        peerDependenciesMeta: { "happy-dom": { optional: true } },
         exports: exportsMap,
       },
       null,

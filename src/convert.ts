@@ -1,8 +1,8 @@
 /* eslint import/prefer-default-export: off */
-// The converter runs in Node (the editor's main process, the conformance tools), so it takes TipTap 3's server build,
-// which parses with happy-dom (#102). The default entry is the browser's and refuses to run outside one.
-import { generateJSON, generateHTML } from '@tiptap/html/server';
 import { getSchema } from '@tiptap/core';
+import { DOMParser as ProseMirrorParser, DOMSerializer } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { Window } from 'happy-dom';
 import { parse, serializeOuter } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
 import { compareStrings } from './history';
@@ -121,12 +121,49 @@ export const asBrowserParsed = (html: string) => {
   return asParagraphLines(body.childNodes);
 };
 
+// The converter runs in Node (the editor's main process, the conformance tools), so it parses and serializes in a
+// happy-dom window, as TipTap 3's server build does (#102). That build opens a window per call and closes it
+// asynchronously, so a conversion, which runs without yielding, held every one until it returned: about 0.5 MB a
+// frame, out of memory on a real poem. One window, opened when first needed and reused, holds nothing per frame.
+// Nothing runs in it: scripts, file loading, CSS, frames and computed styles are off, as in TipTap's build.
+let poemWindow: Window | undefined;
+const htmlWindow = () => {
+  poemWindow ??= new Window({
+    settings: {
+      disableJavaScriptEvaluation: true,
+      disableJavaScriptFileLoading: true,
+      disableCSSFileLoading: true,
+      disableIframePageLoading: true,
+      disableComputedStyleRendering: true,
+    },
+  });
+  return poemWindow;
+};
+
 // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
 // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
-const frameJSON = (html: string) =>
-  generateJSON(dropTrailingBreaks(html), poemExtensions, {
-    preserveWhitespace: true,
-  });
+// Parsed into an element of the window's own document: happy-dom's DOMParser keeps every document it makes until the
+// event loop turns, which a conversion never lets it do. Frames reach here re-serialized as a body's children
+// (asBrowserParsed), so parsing them in an element of the body parses them as the body did.
+const frameJSON = (html: string) => {
+  const body = htmlWindow().document.createElement('div');
+  body.innerHTML = dropTrailingBreaks(html);
+  return ProseMirrorParser.fromSchema(schema)
+    .parse(body as unknown as globalThis.Node, { preserveWhitespace: true })
+    .toJSON();
+};
+
+// The HTML the editor's getHTML writes for `doc`.
+const frameHTML = (doc: ProseMirrorNode) => {
+  const { document } = htmlWindow();
+  const wrap = document.createElement('div');
+  DOMSerializer.fromSchema(schema).serializeFragment(
+    doc.content,
+    { document: document as unknown as globalThis.Document },
+    wrap as unknown as HTMLElement
+  );
+  return wrap.innerHTML;
+};
 
 // A private-use character, lengthened until neither the frame nor its text (character references decoded) contains
 // it, nor `other`: every block that reads as it, or starts with it, is one this file put there.
@@ -369,8 +406,8 @@ export const convertMidstFile = (oldMidst: string) => {
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
     const source = dropZeroWidthOnlyElements(asBrowserParsed(el.content));
     const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
-    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const htmlContentAtFrame = frameHTML(doc);
     const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
 
     return {

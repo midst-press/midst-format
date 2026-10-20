@@ -131,11 +131,13 @@ const asBrowserParsed = (html) => {
 };
 // The order matches convertMidstFile:
 // dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))).
+// The oracle's TipTap 2 writes a no-break space as the raw character; stored text writes it as &nbsp;, the HTML
+// standard (docs/LIBRARY.md). Mapped here, once, so every comparison with the converter is exact.
 const normalise = (html) =>
   generateHTML(
     generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))), extensions, {
       preserveWhitespace: true,
     }),
     extensions,
-  );
+  ).replace(/\u00a0/g, '&nbsp;');
 module.exports = { extensions, normalise, asBrowserParsed, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };
