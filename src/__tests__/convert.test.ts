@@ -429,6 +429,11 @@ describe('a selection marker left in an old file', () => {
     ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p><em style="display:none"></em></p>'],
     ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
     ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
+    // cyril-9137f1ee: JavaScript's \\s also matches these, which must not be deleted as filler.
+    ['a raw no-break space beside a shown one', '<p>\u00A0<span>&#x200B;</span></p>', '<p>\u00A0</p>'],
+    ['a raw tab beside a shown one', '<p>\t<span>&#x200B;</span></p>', '<p>\t</p>'],
+    ['a raw ideographic space beside a shown one', '<p>\u3000<span>&#x200B;</span></p>', '<p>\u3000</p>'],
+    ['a raw U+2003 beside a shown one', '<p>\u2003<span>&#x200B;</span></p>', '<p>\u2003</p>'],
   ])('leaves no line for %s, as before', (_name, html, out) => {
     expect(dropZeroWidthOnlyElements(html)).toBe(out);
   });
