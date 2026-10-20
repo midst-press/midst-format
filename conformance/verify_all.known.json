@@ -21,7 +21,7 @@
     "frames": 5973,
     "badFrames": 0,
     "textBad": 1,
-    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs. Expected separator-only, as in html-shape--div-leading-br (textexact reads the <br> and the <p> as two line starts, #81); the archive frame itself not yet checked beyond separators. Counts from Violet's Studio run at f0d6e39, 20 Oct"
+    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs on line separators only, one fewer in the conversion (Violet's separator-removed check with a control, 20 Oct): it reads the <br> and the <p> in <div><br><p> as two line starts (#81). Counts from her Studio run at f0d6e39"
   },
   "#32": {
     "frames": 3338,
@@ -39,7 +39,7 @@
     "frames": 1658,
     "badFrames": 0,
     "textBad": 1,
-    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs. Expected separator-only, as in html-shape--div-leading-br (textexact reads the <br> and the <p> as two line starts, #81); the archive frame itself not yet checked beyond separators. Counts from Violet's Studio run at f0d6e39, 20 Oct"
+    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs on line separators only, one fewer in the conversion (Violet's separator-removed check with a control, 20 Oct): it reads the <br> and the <p> in <div><br><p> as two line starts (#81). Counts from her Studio run at f0d6e39"
   },
   "#47": {
     "frames": 8889,
