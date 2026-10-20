@@ -1,7 +1,8 @@
 /* eslint import/prefer-default-export: off */
 import { generateJSON, generateHTML } from '@tiptap/html';
 import { getSchema } from '@tiptap/core';
-import { parse, serialize } from 'parse5';
+import { parse, serializeOuter } from 'parse5';
+import type { DefaultTreeAdapterMap } from 'parse5';
 import { compareStrings } from './history';
 import poemExtensions from './extensions';
 
@@ -65,6 +66,40 @@ const endOfBlock = (
 // generateJSON parses with zeed-dom, which stops at a closing tag with nothing open to close and drops every word
 // after it (midst-format #78). Here a stray </div> or </span> is ignored and a stray </p> becomes an empty <p></p>,
 // a <p> opened inside a <p> closes the first, and the regex passes below see the browser's tree, not the file's.
+// The elements a browser lays out as a line of their own; anything else at the top level is inline content.
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'blockquote', 'pre', 'table']);
+type Parse5Node = DefaultTreeAdapterMap['childNode'];
+const isBlock = (n: Parse5Node) => BLOCK_TAGS.has(n.nodeName);
+const isBlankText = (n: Parse5Node) =>
+  n.nodeName === '#text' && 'value' in n && /^[ \n\r\t\f]*$/.test(n.value);
+// The top level as the lines a browser draws, each made a <p>: a run of inline content between blocks is an
+// anonymous line, and a <div> holding no block is a line. TipTap makes a paragraph of each already, so the number of
+// blocks is unchanged; written as <p>, the paragraph rules (dropTrailingBreaks, dropInvisibleParagraphs) reach them:
+// a bare <br> between paragraphs, or <div><br></div>, is one line in a browser (midst-editor #15).
+const asParagraphLines = (nodes: Parse5Node[]): string => {
+  let out = '';
+  let run: Parse5Node[] = [];
+  const flush = () => {
+    if (run.length > 0 && !run.every(isBlankText))
+      out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
+    else out += run.map((n) => serializeOuter(n)).join('');
+    run = [];
+  };
+  for (const n of nodes) {
+    if (!isBlock(n)) {
+      run.push(n);
+    } else {
+      flush();
+      if (n.nodeName === 'div' && 'childNodes' in n && !n.childNodes.some(isBlock)) {
+        const attrs = 'attrs' in n ? n.attrs.map((a: { name: string; value: string }) => ` ${a.name}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('') : '';
+        out += `<p${attrs}>${n.childNodes.map((c: Parse5Node) => serializeOuter(c)).join('')}</p>`;
+      } else out += serializeOuter(n);
+    }
+  }
+  flush();
+  return out;
+};
+
 export const asBrowserParsed = (html: string) => {
   const htmlEl = parse(`<!DOCTYPE html><body>${html}`).childNodes.find(
     (n) => n.nodeName === 'html'
@@ -75,7 +110,7 @@ export const asBrowserParsed = (html: string) => {
       : undefined;
   if (!body || !('childNodes' in body))
     throw new Error('parse5 returned a document with no <body>');
-  return serialize(body);
+  return asParagraphLines(body.childNodes);
 };
 
 // Parse as the editor does (Editor and Replay use preserveWhitespace: true).

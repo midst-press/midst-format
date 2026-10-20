@@ -522,3 +522,26 @@ describe('a stray closing tag', () => {
     expect(convertFrame(frame)).toBe(expected);
   });
 });
+
+// A browser draws a run of inline content between blocks as a line, and a <div> holding no block as a line, and in
+// both a last <br> draws nothing more. Written as <p>, the paragraph rules reach them (midst-editor #15).
+describe('the top-level lines', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a bare <br> between paragraphs is one blank line', '<p>zq</p><br><p>xv</p>', '<p>zq</p><p></p><p>xv</p>'],
+    ['two bare <br>s are two blank lines', '<p>zq</p><br><br><p>xv</p>', '<p>zq</p><p><br></p><p>xv</p>'],
+    ['bare text with a last <br> is one line', '<p>zq</p>xv<br><p>wy</p>', '<p>zq</p><p>xv</p><p>wy</p>'],
+    ['<div><br></div> is one blank line', 'zq<div><br></div>', '<p>zq</p><p></p>'],
+    ['a <div> line keeps its words and drops its last <br>', 'zq<div>xv<br></div>', '<p>zq</p><p>xv</p>'],
+    ['a styled <div> line too', '<div style="color: red">zq<br></div>', '<p>zq</p>'],
+    ['whitespace between blocks is no line (so before #15 too: a guard)', '<p>zq</p> <p>xv</p>', '<p>zq</p><p>xv</p>'],
+  ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});

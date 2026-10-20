@@ -60,12 +60,37 @@ const dropInvisibleParagraphs = (html) => {
 };
 // The frame as a browser parsed it, mirroring convert.ts's asBrowserParsed (midst-format #78): parse5, the HTML
 // standard's tree construction, so a stray closing tag no longer ends the parse.
-const { parse, serialize } = require('parse5');
+const { parse, serializeOuter } = require('parse5');
+// Mirrors convert.ts's asParagraphLines: each top-level line a browser draws, written as a <p> (midst-editor #15).
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'blockquote', 'pre', 'table']);
+const isBlock = (n) => BLOCK_TAGS.has(n.nodeName);
+const isBlankText = (n) => n.nodeName === '#text' && /^[ \n\r\t\f]*$/.test(n.value);
+const asParagraphLines = (nodes) => {
+  let out = '';
+  let run = [];
+  const flush = () => {
+    if (run.length > 0 && !run.every(isBlankText)) out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
+    else out += run.map((n) => serializeOuter(n)).join('');
+    run = [];
+  };
+  for (const n of nodes) {
+    if (!isBlock(n)) run.push(n);
+    else {
+      flush();
+      if (n.nodeName === 'div' && !n.childNodes.some(isBlock)) {
+        const attrs = n.attrs.map((a) => ` ${a.name}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('');
+        out += `<p${attrs}>${n.childNodes.map((c) => serializeOuter(c)).join('')}</p>`;
+      } else out += serializeOuter(n);
+    }
+  }
+  flush();
+  return out;
+};
 const asBrowserParsed = (html) => {
   const htmlEl = parse(`<!DOCTYPE html><body>${html}`).childNodes.find((n) => n.nodeName === 'html');
   const body = htmlEl && htmlEl.childNodes.find((n) => n.nodeName === 'body');
   if (!body) throw new Error('parse5 returned a document with no <body>');
-  return serialize(body);
+  return asParagraphLines(body.childNodes);
 };
 // The order matches convertMidstFile:
 // dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))).
