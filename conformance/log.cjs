@@ -20,7 +20,7 @@ const TOKEN = /^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/;
 // Where a failure happened: verify_lib's and markloss's stages, and provenance's kinds of disagreement.
 const STAGES = ['list', 'extract', 'read', 'parse', 'normalise', 'convert', 'verify', 'write', 'options', 'block-not-found', 'no-options', 'trailing-break', 'zero-width', 'invisible-paragraph'];
 // The suite's own ConformanceError codes, and Node's: errno names, ERR_* and MODULE_NOT_FOUND.
-const OWN_CODES = ['ENTRY_COUNT', 'EXTRACTED_COUNT', 'NO_FRAMES_ARRAY', 'NO_B_META', 'HISTORY_LONGER_THAN_FRAMES'];
+const OWN_CODES = ['ENTRY_COUNT', 'EXTRACTED_COUNT', 'NO_FRAMES_ARRAY', 'NO_B_META', 'HISTORY_LONGER_THAN_FRAMES', 'KNOWN_SHAPE'];
 const isCode = (c) =>
   typeof c === 'string' && (OWN_CODES.includes(c) || c === 'MODULE_NOT_FOUND' || /^ERR_[A-Z0-9_]{1,60}$/.test(c) || Object.hasOwn(os.constants.errno, c));
 const STRINGS = { stage: (v) => STAGES.includes(v), code: isCode, class: (v) => TOKEN.test(v) };
