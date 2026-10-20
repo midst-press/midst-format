@@ -129,8 +129,22 @@ const ZERO_WIDTH_ONLY_ELEMENT = new RegExp(
 // span mark, so it unwraps the span and the FEFF becomes a paragraph of its own: the poem starts a line
 // lower than written. Remove such elements before parsing. Zero-width characters beside visible text are
 // left alone, and so are <p><br></p> and <p></p>. Repeats so a marker wrapped in a marker goes too.
+//
+// Rangy's markers are display:none, but a zero-width-only element without it is drawn: a paragraph holding only
+// one is a line in the old player, as a browser draws the zero-width character's line box (#71). Removing it left
+// <p></p>, which dropInvisibleParagraphs then drops, losing that line. So a paragraph whose only content is such
+// SHOWN elements, with hidden ones, empty inline tags and whitespace around them, becomes <p><br></p> first: the
+// blank line it was, without the invisible character. Elsewhere, beside text or outside a paragraph, they go as before.
+const ZERO_WIDTH_TAGS = 'span|em|strong|i|b|u|s|strike|a';
+const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
+const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
+const ZERO_WIDTH_LINE_FILL = `[ \\n\\r\\f]|<(?:${ZERO_WIDTH_TAGS})\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>|<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>|</(?:${ZERO_WIDTH_TAGS})>`;
+const SHOWN_ZERO_WIDTH_LINE = new RegExp(
+  `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
+  'gi'
+);
 export const dropZeroWidthOnlyElements = (html: string) => {
-  let current = html;
+  let current = html.replace(SHOWN_ZERO_WIDTH_LINE, '$1<br>$2');
   let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
   while (next !== current) {
     current = next;

@@ -23,6 +23,19 @@ const dropUndrawnBreaks = (html) => html.replace(UNDRAWN_BREAK, '$1');
 // display:none), so it is no part of any line. Written here independently of the converter, as browser semantics.
 const ZW_ONLY_ELEMENT =
   /<(span|em|strong|i|b|u|s|strike|a)\b[^>]*>(?:[\uFEFF\u200B\u200C\u200D\u2060]|&#(?:x0*(?:feff|200b|200c|200d|2060)|0*(?:65279|8203|8204|8205|8288));)+<\/\1>/gi;
+// Only a HIDDEN one draws nothing at all. One without display:none is drawn: alone in a paragraph it is that
+// paragraph's line, though its character has no width (midst-format #71, measured in Chromium). So hidden ones go
+// before the paragraph rule below, which then sees the shown one's character and keeps its line; all go after it.
+const HIDDEN_ZW_ONLY_ELEMENT =
+  /<(span|em|strong|i|b|u|s|strike|a)\b(?=[^>]*display\s*:\s*none)[^>]*>(?:[\uFEFF\u200B\u200C\u200D\u2060]|&#(?:x0*(?:feff|200b|200c|200d|2060)|0*(?:65279|8203|8204|8205|8288));)+<\/\1>/gi;
+const dropHiddenElements = (html) => {
+  let current = html;
+  for (;;) {
+    const next = current.replace(HIDDEN_ZW_ONLY_ELEMENT, '');
+    if (next === current) return current;
+    current = next;
+  }
+};
 const dropUndrawnElements = (html) => {
   let current = html;
   let next = current.replace(ZW_ONLY_ELEMENT, '');
@@ -56,7 +69,7 @@ const wrapLooseRuns = (html) =>
   html.replace(/(<\/(?:p|div)>)((?:(?!<\/?(?:p|div)\b)[\s\S])+)/gi, (m, close, run) => (/\S/.test(run) ? `${close}<p>${run}</p>` : m));
 const textOf = (html, { editor = false } = {}) =>
   decode(
-    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnParagraphs(dropUndrawnElements(html)))))
+    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnElements(dropUndrawnParagraphs(dropHiddenElements(html))))))
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
