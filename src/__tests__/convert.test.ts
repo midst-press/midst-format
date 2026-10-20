@@ -443,6 +443,7 @@ describe('a selection marker left in an old file', () => {
     // The emptied hidden wrapper goes too (#88): kept, it held its paragraph past the invisible-paragraph rule.
     ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p></p>'],
     ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
+    // In a conversion asBrowserParsed has already made such a run a <p>, so it is kept as a line (#77, below).
     ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
     // cyril-9137f1ee: JavaScript's \\s also matches these, which must not be deleted as filler.
     ['a raw no-break space beside a shown one', '<p>\u00A0<span>&#x200B;</span></p>', '<p>\u00A0</p>'],
@@ -456,6 +457,23 @@ describe('a selection marker left in an old file', () => {
   it('a paragraph holding only a shown one stays a blank line through the whole conversion', () => {
     const c = convert([`<p>zq</p><p><span>&#x200B;</span></p><p>${HIDDEN}</p><p>xv</p>`]);
     expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
+  });
+
+  // #77, measured in Chromium: outside any paragraph a shown one is a line box of its own. asBrowserParsed makes the
+  // run a <p> first, so the paragraph rule above keeps it; an empty or space-only inline element there draws nothing.
+  it.each([
+    ['before the first paragraph', '<span>&#x200B;</span><p>zq</p><p>xv</p>', ['', 'zq', 'xv']],
+    ['between paragraphs', '<p>zq</p><span>&#x200B;</span><p>xv</p>', ['zq', '', 'xv']],
+    ['after the last paragraph', '<p>zq</p><p>xv</p><span>&#x200B;</span>', ['zq', 'xv', '']],
+    ['last in a container', '<div><p>zq</p><span>&#x200B;</span></div><p>xv</p>', ['zq', '', 'xv']],
+    ['beside text, adding no line', 'zq<span>&#x200B;</span><p>xv</p>', ['zq', 'xv']],
+    ['hidden, adding no line', `<p>zq</p>${HIDDEN}<p>xv</p>`, ['zq', 'xv']],
+    ['an empty span, adding no line', '<p>zq</p><span></span><p>xv</p>', ['zq', 'xv']],
+    ['a space in an <em>, adding no line', '<p>zq</p><em> </em><p>xv</p>', ['zq', 'xv']],
+  ])('outside any paragraph, %s', (_name, html, lines) => {
+    const c = convert([html]);
+    expect(paragraphs(c.text)).toEqual(lines);
     expect(c.text).not.toMatch(ZERO_WIDTH);
   });
 });

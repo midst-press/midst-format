@@ -248,7 +248,9 @@ const ZERO_WIDTH_ONLY_ELEMENT = new RegExp(
 // <p></p>, which dropInvisibleParagraphs then drops, losing that line. So a paragraph whose only content is such
 // SHOWN elements, with hidden ones, empty inline tags and whitespace around them, keeps its line first: its whitespace
 // and a <br>, without the tags and the invisible characters. A space between two such characters is drawn, 9.6px wide
-// in Chromium (#98); the converter keeps spaces as written, so one at the line's edge stays too, as in <p>a </p>. Elsewhere, beside text or outside a paragraph, they go as before.
+// in Chromium (#98); the converter keeps spaces as written, so one at the line's edge stays too, as in <p>a </p>.
+// Beside text they go as before. Outside any paragraph asBrowserParsed has already made their run a <p>, so the same
+// rule keeps that line (#77).
 const ZERO_WIDTH_TAGS = 'span|em|strong|i|b|u|s|strike|a';
 const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
 const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
