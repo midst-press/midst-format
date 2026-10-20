@@ -580,6 +580,10 @@ describe('the top-level lines', () => {
     ['a comment with whitespace is no line', '<p>zq</p>\n<!-- c -->\n<p>xv</p>', '<p>zq</p><p>xv</p>'],
     // A block outside the poem's schema is left as main left it, not made a line (cyril-9137f1ee, review of #84).
     ['an <hr> between paragraphs is left as before', '<p>zq</p><hr><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    // A <div> holding blocks: its children are lines as at the top level (#85; archive poems #13 and #44).
+    ['a <br> first in a <div> of paragraphs is one blank line', 'zq<div><br><p>xv</p></div>', '<p>zq</p><p></p><p>xv</p>'],
+    ['a <br> last in a <div> of paragraphs is one blank line', '<div><p>zq</p><br></div>', '<p>zq</p><p></p>'],
+    ['the same in a <div> inside a <div>', '<div><div><br><p>zq</p></div></div>', '<p></p><p>zq</p>'],
     ['whitespace between blocks is no line (so before #15 too: a guard)', '<p>zq</p> <p>xv</p>', '<p>zq</p><p>xv</p>'],
   ])('%s', (_, frame, expected) => {
     expect(convertFrame(frame)).toBe(expected);

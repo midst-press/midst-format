@@ -95,6 +95,10 @@ const asParagraphLines = (nodes: Parse5Node[]): string => {
       if (n.nodeName === 'div' && 'childNodes' in n && !n.childNodes.some(isBlock)) {
         const attrs = 'attrs' in n ? n.attrs.map((a: { name: string; value: string }) => ` ${a.name}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('') : '';
         out += `<p${attrs}>${n.childNodes.map((c: Parse5Node) => serializeOuter(c)).join('')}</p>`;
+      } else if (n.nodeName === 'div' && 'childNodes' in n) {
+        // A <div> holding blocks: its children are lines as at the top level, so a <br> in an anonymous run inside it
+        // is a <p> the paragraph rules reach (#85). TipTap flattened such a div into its blocks already.
+        out += asParagraphLines(n.childNodes);
       } else out += serializeOuter(n);
     }
   }

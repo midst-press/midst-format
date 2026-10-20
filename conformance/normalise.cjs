@@ -91,6 +91,8 @@ const asParagraphLines = (nodes) => {
       if (n.nodeName === 'div' && !n.childNodes.some(isBlock)) {
         const attrs = n.attrs.map((a) => ` ${a.name}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('');
         out += `<p${attrs}>${n.childNodes.map((c) => serializeOuter(c)).join('')}</p>`;
+      } else if (n.nodeName === 'div') {
+        out += asParagraphLines(n.childNodes); // a <div> holding blocks: its children are lines (#85)
       } else out += serializeOuter(n);
     }
   }
