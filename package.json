@@ -17,7 +17,6 @@
     "shapes-fuzz": "node conformance/shapes_fuzz.cjs --seed 1 --n 5000",
     "shapes-fuzz:open-controls": "node conformance/shapes_fuzz.cjs --seed 1 --n 1000 --open-controls",
     "build:lib": "node tools/build-lib.mjs",
-    "verbatim": "node tools/verbatim.mjs",
     "parity": "node conformance/parity.cjs",
     "consumer-ts46": "node tools/consumer-ts46.cjs",
     "reproducible": "node tools/reproducible.mjs"
