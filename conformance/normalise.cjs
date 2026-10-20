@@ -42,12 +42,19 @@ const SHOWN_ZERO_WIDTH_LINE = new RegExp(
   `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
   'gi'
 );
+// A hidden inline element left empty, e.g. a Rangy marker whose FEFF a bold command had wrapped in <b>, once that
+// <b> is removed, perhaps still holding empty inline tags: display:none draws nothing, so it goes too, and the paragraph
+// rule can then see what is left (#88). Never past a closing tag of its own name, so no stray closing tag is left.
+const EMPTY_HIDDEN_ELEMENT = new RegExp(
+  `<(span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b(?=[^>]*display\\s*:\\s*none)[^>]*>(?:</?(?!\\1\\b)(?:span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b[^>]*>)*</\\1>`,
+  'gi'
+);
 const dropZeroWidthOnlyElements = (html) => {
   let current = html.replace(SHOWN_ZERO_WIDTH_LINE, '$1<br>$2');
-  let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+  let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   while (next !== current) {
     current = next;
-    next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+    next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   }
   return current;
 };

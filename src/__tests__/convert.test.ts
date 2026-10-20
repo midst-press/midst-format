@@ -426,7 +426,8 @@ describe('a selection marker left in an old file', () => {
 
   it.each([
     ['a hidden marker alone', `<p>${HIDDEN}</p>`, '<p></p>'],
-    ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p><em style="display:none"></em></p>'],
+    // The emptied hidden wrapper goes too (#88): kept, it held its paragraph past the invisible-paragraph rule.
+    ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p></p>'],
     ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
     ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
     // cyril-9137f1ee: JavaScript's \\s also matches these, which must not be deleted as filler.
@@ -586,6 +587,28 @@ describe('the top-level lines', () => {
     ['the same in a <div> inside a <div>', '<div><div><br><p>zq</p></div></div>', '<p></p><p>zq</p>'],
     ['whitespace between blocks is no line (so before #15 too: a guard)', '<p>zq</p> <p>xv</p>', '<p>zq</p><p>xv</p>'],
   ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// A Rangy marker whose FEFF a bold command wrapped in <b> (archive poem #28): once the <b> holding only the FEFF is
+// removed, the marker is an empty display:none element, which draws nothing, so it goes too (#88).
+describe('a hidden marker emptied by the zero-width rule', () => {
+  const MARKER = '<span class="rangySelectionBoundary" style="line-height: 0; display: none;">';
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['its FEFF in <b>', `<p>zq</p><p><i>${MARKER}<b>&#xFEFF;</b></span></i></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+    ['its FEFF in <b><i>', `<p>zq</p><p>${MARKER}<b><i>﻿</i></b></span></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+    ['beside text, the text stays (so before #88 too: a guard)', `<p>zq${MARKER}<b>&#xFEFF;</b></span>xv</p>`, '<p>zqxv</p>'],
+    // A hidden span inside a hidden span: the outer one is never closed early, so no stray </span> is left.
+    ['nested in another hidden span', `<p>zq</p><p>${MARKER}${MARKER}<b>&#xFEFF;</b></span></span></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+  ])('goes when %s', (_, frame, expected) => {
     expect(convertFrame(frame)).toBe(expected);
   });
 });
