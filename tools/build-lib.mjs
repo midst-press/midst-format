@@ -54,8 +54,42 @@ const internalImports = (file) => ({
   },
 });
 
+// The packages a bundle carries code from (#80), by the metafile's inputs: a path's last node_modules/<name>, or
+// node_modules/@scope/<name>. TipTap stays external, so it is never an input.
+export function bundledPackages(inputPaths) {
+  const found = new Map();
+  for (const input of inputPaths) {
+    const m = input.replace(/\\/g, "/").match(/^(.*node_modules\/)((?:@[^/]+\/)?[^/]+)\//);
+    if (m) found.set(m[2], m[1] + m[2]);
+  }
+  return found;
+}
+
+const LICENCE_FILE = /^(licen[cs]e|copying)(\.(md|txt))?$/i;
+
+// THIRD_PARTY_NOTICES.md: every bundled package's name, version and licence text, in name order. The licences
+// (MIT, BSD) require the notice in every copy, and the apps ship this build. A package with no licence file
+// fails the build rather than ship without its notice.
+export function thirdPartyNotices(packages, base = root) {
+  const parts = [
+    "# Third-party notices",
+    "",
+    "This build of @midst-press/midst-format includes code from the packages below. Each one's licence and",
+    "copyright notice follows, as its licence requires.",
+  ];
+  for (const name of [...packages.keys()].sort()) {
+    const dir = path.join(base, packages.get(name));
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
+    const file = fs.readdirSync(dir).filter((f) => LICENCE_FILE.test(f)).sort()[0];
+    if (!file) throw new Error(`${name} is bundled but has no licence file to carry`);
+    const text = fs.readFileSync(path.join(dir, file), "utf8").replace(/\r\n/g, "\n").trimEnd();
+    parts.push("", `## ${name} ${manifest.version} (${manifest.license ?? "see below"})`, "", "```", text, "```");
+  }
+  return `${parts.join("\n")}\n`;
+}
+
 async function bundle(outDir, name, { format, file }) {
-  await esbuild.build({
+  const result = await esbuild.build({
     entryPoints: [path.join(root, "src", `${sourceOf(name)}.ts`)],
     outfile: path.join(outDir, name, file),
     bundle: true,
@@ -68,7 +102,9 @@ async function bundle(outDir, name, { format, file }) {
     plugins: [internalImports(file)],
     // Warnings and errors are thrown below, so none is lost to a stream nobody reads.
     logLevel: "silent",
+    metafile: true,
   });
+  return Object.keys(result.metafile.inputs);
 }
 
 function emitDeclarations(outDir) {
@@ -107,8 +143,14 @@ export async function buildLib(outDir) {
   for (const name of ENTRIES)
     fs.mkdirSync(path.join(outDir, name), { recursive: true });
 
+  const inputs = [];
   for (const name of ENTRIES)
-    for (const f of FORMATS) await bundle(outDir, name, f);
+    for (const f of FORMATS) inputs.push(...(await bundle(outDir, name, f)));
+  const packages = bundledPackages(inputs);
+  fs.writeFileSync(
+    path.join(outDir, "THIRD_PARTY_NOTICES.md"),
+    thirdPartyNotices(packages),
+  );
   const rewritten = emitDeclarations(outDir);
 
   for (const name of ENTRIES) {
@@ -151,6 +193,7 @@ export async function buildLib(outDir) {
     entries: ENTRIES.length,
     formats: FORMATS.length,
     declarationSpecifiersRewritten: rewritten,
+    bundledPackages: packages.size,
   };
 }
 
@@ -165,7 +208,7 @@ if (
   try {
     const r = await buildLib(outDir);
     console.log(
-      `built ${r.entries} entry points x ${r.formats} formats, plus declarations (${r.declarationSpecifiersRewritten} specifiers rewritten)`,
+      `built ${r.entries} entry points x ${r.formats} formats, plus declarations (${r.declarationSpecifiersRewritten} specifiers rewritten), and the notices of ${r.bundledPackages} bundled packages`,
     );
     console.log(`output: ${path.relative(root, outDir) || "."}`);
   } catch (e) {

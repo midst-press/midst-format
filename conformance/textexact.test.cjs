@@ -44,6 +44,10 @@ const cases = [
   ['a selection marker before the first paragraph is no line', '<span class="rangySelectionBoundary" style="display: none;">&#xFEFF;</span><p>t</p>', '<p>t</p>', true],
   ['a literal zero-width-only span is not drawn', '<p>a<span>\u200B</span>b</p>', '<p>ab</p>', true],
   ['a zero-width character beside text is still compared', '<p>a&#x200B;b</p>', '<p>ab</p>', false],
+  // midst-format #71: only display:none hides one; a paragraph holding only a shown one is a line, with no text.
+  ['a shown zero-width-only span alone in a paragraph is a line', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
+  ['a shown zero-width-only span alone in a paragraph is not dropped', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p>b</p>', false],
+  ['a hidden marker alone in a paragraph is no line', '<p>a</p><p><span style="display: none;">&#xFEFF;</span></p><p>b</p>', '<p>a</p><p>b</p>', true],
   ['a span with text is drawn', '<p>a<span>x</span>b</p>', '<p>ab</p>', false],
   // Text after a closed block is a line of its own (midst-format #13).
   ['text between paragraphs is a line', '<p>a</p>x<p>b</p>', '<p>a</p><p>x</p><p>b</p>', true],
@@ -61,6 +65,16 @@ const cases = [
   ['div wrapping paragraphs is not a line', '<div><p>a</p><p>b</p></div>', '<p>a</p><p>b</p>', true],
   ['text then a div of paragraphs', 'a<div><p><br></p><p>b</p></div>', '<p>a</p><p><br></p><p>b</p>', true],
   ['nested wrapping divs', '<div><div><p>a</p></div></div>', '<p>a</p>', true],
+  // The source as a browser built it (midst-format #81): tags as written no longer count lines the browser never drew.
+  ['a <p> opened in a <p> holding only a <br> closes it: one empty line, not two', '<p>one</p><p><br><p>two</p>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['stray </p>s draw nothing (the fixture html-shape--nested-paragraphs)', '<p>one</p></p></p><p><br><p>two</p>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['a <br> before a <p> inside a <div> is one line, not two', 'one<div><br><p>two</p></div>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['a hidden marker whose FEFF is in <b> draws nothing', '<p>one</p><p><span style="display: none;"><b>&#xFEFF;</b></span></p><p>two</p>', '<p>one</p><p>two</p>', true, 'editor'],
+  ['hidden text is not drawn', '<p>one<span style="display:none">zq</span></p>', '<p>one</p>', true, 'editor'],
+  // #78: a stray </p> made the old parse drop every word after it. Read as a browser builds it, the words are there,
+  // so an editor that lost them still differs: textexact can still disagree with the converter.
+  ['a word lost after a stray </p> is found', '<p>one</p></p><p>two</p>', '<p>one</p>', false, 'editor'],
+  ['a word lost after a stray </div> is found', '<p>one</p></div><p>two</p>', '<p>one</p>', false, 'editor'],
   // The editor draws a trailing hard break, so its <p><br></p> is two lines, like the browser's <p><br><br></p>.
   ['editor trailing hard break is a line', '<p><br><br></p>', '<p><br></p>', true, 'editor'],
   ['editor trailing hard break is not nothing', '<p><br><br></p>', '<p></p>', false, 'editor'],

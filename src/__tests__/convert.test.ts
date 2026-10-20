@@ -408,6 +408,42 @@ describe('a selection marker left in an old file', () => {
   ])('is not removed with %s', (_name, html) => {
     expect(dropZeroWidthOnlyElements(html)).toBe(html);
   });
+
+  // #71: without display:none the element is drawn, so a paragraph holding only such elements was a line in the old
+  // player (a browser draws the zero-width character's line box). It stays a blank line, without the character.
+  const HIDDEN = '<span class="rangySelectionBoundary" style="line-height: 0; display: none;">&#xFEFF;</span>';
+  it.each([
+    ['a shown zero-width span', '<p><span>&#x200B;</span></p>'],
+    ['Rangy’s class without display:none, which a browser draws', '<p><span class="rangySelectionBoundary">&#xFEFF;</span></p>'],
+    ['a shown one wrapped in a shown one', '<p><span><span>&#xFEFF;</span></span></p>'],
+    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`],
+    ['an attribute on the paragraph', '<p data-line-number="2"><span>&#x200B;</span></p>'],
+  ])('keeps a paragraph holding only %s as a blank line', (_name, html) => {
+    expect(dropZeroWidthOnlyElements(`<p>zq</p>${html}<p>xv</p>`)).toMatch(
+      /^<p>zq<\/p><p\b[^>]*><br><\/p><p>xv<\/p>$/
+    );
+  });
+
+  it.each([
+    ['a hidden marker alone', `<p>${HIDDEN}</p>`, '<p></p>'],
+    // The emptied hidden wrapper goes too (#88): kept, it held its paragraph past the invisible-paragraph rule.
+    ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p></p>'],
+    ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
+    ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
+    // cyril-9137f1ee: JavaScript's \\s also matches these, which must not be deleted as filler.
+    ['a raw no-break space beside a shown one', '<p>\u00A0<span>&#x200B;</span></p>', '<p>\u00A0</p>'],
+    ['a raw tab beside a shown one', '<p>\t<span>&#x200B;</span></p>', '<p>\t</p>'],
+    ['a raw ideographic space beside a shown one', '<p>\u3000<span>&#x200B;</span></p>', '<p>\u3000</p>'],
+    ['a raw U+2003 beside a shown one', '<p>\u2003<span>&#x200B;</span></p>', '<p>\u2003</p>'],
+  ])('leaves no line for %s, as before', (_name, html, out) => {
+    expect(dropZeroWidthOnlyElements(html)).toBe(out);
+  });
+
+  it('a paragraph holding only a shown one stays a blank line through the whole conversion', () => {
+    const c = convert([`<p>zq</p><p><span>&#x200B;</span></p><p>${HIDDEN}</p><p>xv</p>`]);
+    expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
+  });
 });
 
 // midst-editor #169: a paragraph with nothing a browser draws had no height in the old player (its only paragraph
@@ -493,5 +529,128 @@ describe('a paragraph that drew nothing', () => {
       )
     );
     expect(c.text).toBe('<p>zq</p><p>xv</p>');
+  });
+});
+
+// A closing tag with nothing open to close: a browser ignores it (a stray </p> becomes an empty <p></p>) and keeps
+// every word after it. The editor's parser stopped there and dropped them (midst-format #78).
+describe('a stray closing tag', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a stray </p>', '<p>zq</p></p><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['two stray </p>', '<p>zq</p></p></p><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </div>', '<p>zq</p></div><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </span>', '<p>zq</p></span><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </font> before bare text', '<p>zq</p></font>xv', '<p>zq</p><p>xv</p>'],
+    ['a stray </p> inside a paragraph', '<p>zq</p><p>x</p>v</p><p>wy</p>', '<p>zq</p><p>x</p><p>v</p><p>wy</p>'],
+    ['a stray </p> first', '</p><p>xv</p>', '<p>xv</p>'],
+    // Converted correctly before #78 too: kept so the re-parse cannot regress it.
+    ['a <p> inside a <p>, then its stray close', '<p>zq<p>xv</p></p><p>wy</p>', '<p>zq</p><p>xv</p><p>wy</p>'],
+    // The <br> ends its paragraph once the next <p> closes it, so it draws one line, as in a browser.
+    ['the html-shape fixture', '<p>zq</p></p></p><p><br><p>xv</p>', '<p>zq</p><p></p><p>xv</p>'],
+  ])('keeps every word after %s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// A browser draws a run of inline content between blocks as a line, and a <div> holding no block as a line, and in
+// both a last <br> draws nothing more. Written as <p>, the paragraph rules reach them (midst-editor #15).
+describe('the top-level lines', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a bare <br> between paragraphs is one blank line', '<p>zq</p><br><p>xv</p>', '<p>zq</p><p></p><p>xv</p>'],
+    ['two bare <br>s are two blank lines', '<p>zq</p><br><br><p>xv</p>', '<p>zq</p><p><br></p><p>xv</p>'],
+    ['bare text with a last <br> is one line', '<p>zq</p>xv<br><p>wy</p>', '<p>zq</p><p>xv</p><p>wy</p>'],
+    ['<div><br></div> is one blank line', 'zq<div><br></div>', '<p>zq</p><p></p>'],
+    ['a <div> line keeps its words and drops its last <br>', 'zq<div>xv<br></div>', '<p>zq</p><p>xv</p>'],
+    ['a styled <div> line too', '<div style="color: red">zq<br></div>', '<p>zq</p>'],
+    // A comment draws nothing, alone or with whitespace (clement-7074f29f, review of #84).
+    ['a comment between paragraphs is no line', '<p>zq</p><!--StartFragment--><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a comment with whitespace is no line', '<p>zq</p>\n<!-- c -->\n<p>xv</p>', '<p>zq</p><p>xv</p>'],
+    // A block outside the poem's schema is left as main left it, not made a line (cyril-9137f1ee, review of #84).
+    ['an <hr> between paragraphs is left as before', '<p>zq</p><hr><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    // A <div> holding blocks: its children are lines as at the top level (#85; archive poems #13 and #44).
+    ['a <br> first in a <div> of paragraphs is one blank line', 'zq<div><br><p>xv</p></div>', '<p>zq</p><p></p><p>xv</p>'],
+    ['a <br> last in a <div> of paragraphs is one blank line', '<div><p>zq</p><br></div>', '<p>zq</p><p></p>'],
+    ['the same in a <div> inside a <div>', '<div><div><br><p>zq</p></div></div>', '<p></p><p>zq</p>'],
+    ['whitespace between blocks is no line (so before #15 too: a guard)', '<p>zq</p> <p>xv</p>', '<p>zq</p><p>xv</p>'],
+  ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// A Rangy marker whose FEFF a bold command wrapped in <b> (archive poem #28): once the <b> holding only the FEFF is
+// removed, the marker is an empty display:none element, which draws nothing, so it goes too (#88).
+describe('a hidden marker emptied by the zero-width rule', () => {
+  const MARKER = '<span class="rangySelectionBoundary" style="line-height: 0; display: none;">';
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['its FEFF in <b>', `<p>zq</p><p><i>${MARKER}<b>&#xFEFF;</b></span></i></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+    ['its FEFF in <b><i>', `<p>zq</p><p>${MARKER}<b><i>﻿</i></b></span></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+    ['beside text, the text stays (so before #88 too: a guard)', `<p>zq${MARKER}<b>&#xFEFF;</b></span>xv</p>`, '<p>zqxv</p>'],
+    // A hidden span inside a hidden span: the outer one is never closed early, so no stray </span> is left.
+    ['nested in another hidden span', `<p>zq</p><p>${MARKER}${MARKER}<b>&#xFEFF;</b></span></span></p><p>xv</p>`, '<p>zq</p><p>xv</p>'],
+  ])('goes when %s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// The recorded line is found by data-line-number when exactly one <p> carries it (midst-format #69): the old editor
+// renumbered only when the count of <p> changed, so after paragraphs moved an index named the wrong line.
+describe('pos: the recorded line, by its data-line-number', () => {
+  const posOf = (content: string, lineNumber?: unknown) => {
+    const frame: Record<string, unknown> = { content, timestamp: 1 };
+    if (lineNumber !== undefined) frame.lineNumber = lineNumber;
+    return JSON.parse(convertMidstFile(JSON.stringify({ editorTimelineFrames: [frame] }))).history[0].pos;
+  };
+  const MOVED = '<p data-line-number="0">zq</p><p data-line-number="2">xv</p><p data-line-number="1">wy</p>';
+  const TWO = '<p data-line-number="0">zq</p><p data-line-number="1">xv</p>';
+
+  it('is the end of the paragraph numbered 1, the third, not the second', () => {
+    expect(posOf(MOVED, '1')).toBe(11); // <p>zq</p><p>xv</p><p>wy</p>: the end of "wy"
+  });
+  it('maps a numbered paragraph that is dropped to the last kept one before it', () => {
+    // Numbered 2 is the second <p>, and empty, so it maps to "zq"; index 2 would have given "xv" (7).
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="2"></p><p data-line-number="1">xv</p><p data-line-number="3">wy</p>', '2')).toBe(3);
+  });
+  it('counts past a dropped paragraph before the numbered one', () => {
+    // The archive's commonest shape (#96 review): an empty <p> before the recorded line. Numbered 3 is "wy", the third
+    // converted line; a dropped paragraph's mark read as the target's gave "xv" (7).
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3">wy</p>', '3')).toBe(11);
+  });
+  it('counts past a dropped paragraph before a numbered blank line', () => {
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1"></p><p data-line-number="2">xv</p><p data-line-number="3"><br></p>', '3')).toBe(9);
+  });
+  it('falls back to the index when two paragraphs carry the number', () => {
+    expect(posOf('<p data-line-number="0">zq</p><p data-line-number="1">xv</p><p data-line-number="1">wy</p>', '1')).toBe(7);
+  });
+  it('falls back to the index when no paragraph is numbered', () => {
+    expect(posOf('<p>zq</p><p>xv</p><p>wy</p>', '2')).toBe(11);
+  });
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['blank', ''],
+    ['spaces', '  '],
+  ])('names no line when lineNumber is %s', (_, lineNumber) => {
+    expect(posOf(TWO, lineNumber)).toBe(0);
   });
 });

@@ -165,4 +165,54 @@ describe("the built library", () => {
     expect(buildLabel({})).toBe("Development build");
     expect(isPreRelease("v1.0.0")).toBe(false);
   });
+
+  // #80: the bundled packages' licences (MIT, BSD) require their notice in every copy, and the apps ship this build.
+  it("carries the licence of every package whose code it bundles, word for word", () => {
+    const notices = fs.readFileSync(path.join(dist, "THIRD_PARTY_NOTICES.md"), "utf8");
+    const named = [...notices.matchAll(/^## (\S+) /gm)].map((m) => m[1]);
+    // convert bundles parse5 and its entities since #79; a change to that list should change this line too.
+    expect(named).toEqual(["entities", "parse5"]);
+    for (const name of named) {
+      const dir = path.join(root, "node_modules", name);
+      const licence = fs.readdirSync(dir).find((f) => /^licen[cs]e/i.test(f));
+      const text = fs.readFileSync(path.join(dir, licence), "utf8").replace(/\r\n/g, "\n").trimEnd();
+      expect([name, notices.includes(text)]).toEqual([name, true]);
+    }
+  });
+});
+
+describe("bundled packages and their notices", () => {
+  const notices = (packages, base) =>
+    run(`import { thirdPartyNotices } from ${JSON.stringify(path.join(root, "tools", "build-lib.mjs"))}; console.log(thirdPartyNotices(new Map(${JSON.stringify(packages)}), ${JSON.stringify(base)}))`);
+  const found = (inputs) =>
+    JSON.parse(run(`const { bundledPackages } = await import(${JSON.stringify(path.join(root, "tools", "build-lib.mjs"))}); console.log(JSON.stringify([...bundledPackages(${JSON.stringify(inputs)})]))`));
+
+  it("names each package once, scoped ones included, from the innermost node_modules", () => {
+    expect(
+      found([
+        "src/convert.ts",
+        "node_modules/parse5/dist/index.js",
+        "node_modules/parse5/dist/tokenizer/index.js",
+        "node_modules/@zq/qz-lib/index.js",
+        "node_modules/parse5/node_modules/entities/lib/decode.js",
+      ]),
+    ).toEqual([
+      ["parse5", "node_modules/parse5"],
+      ["@zq/qz-lib", "node_modules/@zq/qz-lib"],
+      ["entities", "node_modules/parse5/node_modules/entities"],
+    ]);
+  });
+
+  it("refuses a bundled package that has no licence file, so nothing ships without its notice", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "midst-notices-"));
+    try {
+      fs.mkdirSync(path.join(base, "node_modules", "zq"), { recursive: true });
+      fs.writeFileSync(path.join(base, "node_modules", "zq", "package.json"), '{"version":"1.0.0"}');
+      expect(() => notices([["zq", "node_modules/zq"]], base)).toThrow(/zq is bundled but has no licence file/);
+      fs.writeFileSync(path.join(base, "node_modules", "zq", "LICENSE.md"), "Zq licence\r\n");
+      expect(notices([["zq", "node_modules/zq"]], base)).toContain("## zq 1.0.0 (see below)\n\n```\nZq licence\n```");
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
 });

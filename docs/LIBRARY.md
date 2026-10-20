@@ -4,7 +4,7 @@ Stuart, 18 Oct 2026: consolidate the shared format library so both apps import o
 is the design. The moves follow it as separate PRs, each with zero behaviour change except where it
 says otherwise.
 
-## Today
+## Before the moves
 
 Measured at editor `d4e4876`, web `2e80f0e` and format `a1115b3`.
 
@@ -15,7 +15,7 @@ Measured at editor `d4e4876`, web `2e80f0e` and format `a1115b3`.
 | `convertMidstFile` and the version-header and meta helpers | `src/main/util.ts`, which also holds Electron glue | none                                                    | bundled from the editor checkout (`MIDST_EDITOR_SRC`, `build:harness`)   |
 | `follow.ts`, `buildLabel.ts`                               | `src/renderer/...`, `src/shared/...`               | byte-identical copies                                   | none                                                                     |
 
-How the copies are held together today:
+How the copies were held together then:
 
 - Web's `editor-helpers-identical` hook compares its copies byte for byte against a pinned editor commit.
 - Format's `provenance.cjs` compares the transcribed extension options and regexes against the editor.
@@ -25,6 +25,24 @@ How the copies are held together today:
 Every repo's lockfile resolves `@tiptap/*` to 2.5.4. Format's did so only from #53: until then, StarterKit's extensions, core and pm were nested in it at 2.27.3 (#52). Format holds it with `overrides` and `tools/one_tiptap.cjs`. Web and format pin it exactly in `package.json`, while
 the editor declares `^2.5.4`, which stage 2 pins. `prosemirror-*` differs between the editor (model 1.22.2) and web and
 format (model 1.25.12), and so does TypeScript (editor 5.5.3, web 4.6.3).
+
+## Now
+
+Measured at editor `cdf3003`, web `bc2b01c` and format `8b65218` (`v0.4.0`). Both apps vendor `v0.4.0`.
+
+| Code                                                       | Editor                                                        | Web                                | Format                               |
+| ---------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------- | ------------------------------------ |
+| `ChangeObj`, `step`, `compareStrings`                      | imports `history`                                             | none                               | `src/history.ts`                     |
+| TipTap extension config                                    | imports `extensions`                                          | imports `extensions`               | `src/extensions.ts`                  |
+| `convertMidstFile` and the version-header and meta helpers | imports `convert`; `src/main/util.ts` keeps the Electron glue | none                               | `src/convert.ts`                     |
+| `follow.ts`, `buildLabel.ts`                               | imports `follow` and `build-label`                            | imports `follow` and `build-label` | `src/follow.ts`, `src/buildLabel.ts` |
+
+How they are held together now:
+
+- Each app commits the built package under `vendor/midst-format/`, with hashes in `VENDOR.md`. A pre-commit
+  hook and CI check the hashes, and CI rebuilds the tag and byte-compares it (see below).
+- Format's `provenance.cjs` compares the transcribed extension options and regexes against format's own `src/`.
+- Format CI builds the converter it tests from `src/convert.ts`. It no longer clones the editor.
 
 ## What the library holds
 
@@ -84,8 +102,7 @@ checks, because the hashes alone can be edited in the same commit as the files:
   checks that the tag's commit is the one recorded, builds, and byte-compares `dist/` with
   `vendor/midst-format/`. midst-format is public on both forges, so the clone needs no key: on Gitea it is
   anonymous over `http://gitea-server:3000` (editor #203), and on GitHub it waits until the tag is pushed up. This depends on a tag, which does not move, and not on
-  format `main`. Locally the same check runs with `MIDST_FORMAT_ROOT` set, as web's editor-helpers check
-  does with `MIDST_EDITOR_ROOT`.
+  format `main`. Locally the same check runs with `MIDST_FORMAT_ROOT` set.
 
 **Versioning.** Semver tags `vX.Y.Z` on midst-format `main`, cut from a commit whose CI is green, never
 from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change in behaviour, such as the
@@ -140,7 +157,8 @@ from an untagged `main` (Stuart, 16 Oct). The extraction is `v0.2.0`. A change i
 4. **Format: remove the editor build path.** That is `MIDST_EDITOR_SRC`, the CI editor clone and
    `provenance.cjs`, which the stage 1 dual build makes safe to drop. Close editor #23.
    **Done.** The harness builds from `src/convert.ts` and format CI no longer clones the editor or runs
-   `verbatim`. `provenance.cjs` stays, now comparing `normalise.cjs` with `src/extensions.ts` and
+   `verbatim`. `tools/verbatim.mjs` is retired (#50): the code has changed since the move (`v0.4.0`), so it no
+   longer matches the editor's at the move commit, and nothing is transcribed any more. `provenance.cjs` stays, now comparing `normalise.cjs` with `src/extensions.ts` and
    `src/convert.ts`. `src/MOVED_FROM.json` remains as the record of where the code came from.
 5. **Then the fixes**, #169, #15 and format #36, in the library as `v0.4.0` (the player helpers took `v0.3.0`). Each app takes them by a
    vendoring PR, and then there is one reconversion. The reconversion, the release and the deploy are

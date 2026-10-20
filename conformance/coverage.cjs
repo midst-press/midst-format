@@ -12,13 +12,12 @@
 // raw figure credits code that never ran. This script takes the bundled lines from the source map and
 // reports those; lines outside the bundle are reported as NOT covered, because conformance never runs them.
 //
-// Writes coverage/converter-istanbul.json (istanbul format, corrected the same way) for a merged report, and
-// coverage/converter-util.sha256, the hash of the convert.ts it measured.
+// Writes no files: the istanbul JSON and hash it once wrote were for midst-editor's merged report, whose converter
+// layer is retired (editor 77fcdf9; midst-format #66).
 // Exit: 0, or 1 when a control fails, or 2 on a usage or harness error.
 const fs = require('fs'),
   os = require('os'),
-  path = require('path'),
-  crypto = require('crypto');
+  path = require('path');
 const { spawnSync } = require('child_process');
 // Errors are logged as JSONL on stderr (log.cjs, midst-format #38); stdout is the report.
 const { logEvent, installUncaughtHandler, reportHarnessError } = require('./log.cjs');
@@ -165,7 +164,7 @@ function main() {
   console.log(`convert.ts as a whole: code lines ${covered} of ${codeLines} (${pct(covered, codeLines)}%); ${outside.length} lines of code are not in the bundle and never run here`);
   console.log(`  exports not in the bundle: ${exported.filter((n) => !inBundle.has(n)).join(', ') || 'none'}`);
 
-  // The istanbul JSON. c8 had every unmapped line as covered. Here a line of code outside the bundle is 0
+  // The corrected report. c8 had every unmapped line as covered. Here a line of code outside the bundle is 0
   // hits, and a line that is neither (blank, comment, lone brace) is removed, so it is counted nowhere.
   const fixed = JSON.parse(JSON.stringify(entry));
   let rawCredited = 0;
@@ -179,23 +178,14 @@ function main() {
       delete fixed.s[i];
     }
   }
-  const outFile = path.join(ROOT, 'coverage', 'converter-istanbul.json');
-  fs.mkdirSync(path.dirname(outFile), { recursive: true });
-  fs.writeFileSync(outFile, JSON.stringify({ [fixed.path]: fixed }));
-  // The sha256 of the convert.ts that was MEASURED: the text esbuild bundled (the source map's sourcesContent),
-  // not the file on disk now, which may have changed since build:harness (clement-7074f29f). a consumer's
-  // merge compares it with its own convert.ts and leaves this layer out on a mismatch.
-  if (!map.sourcesContent || typeof map.sourcesContent[si] !== 'string') throw new Error('the bundle source map has no sourcesContent for convert.ts');
-  const utilSha = crypto.createHash('sha256').update(map.sourcesContent[si], 'utf8').digest('hex');
-  fs.writeFileSync(path.join(path.dirname(outFile), 'converter-util.sha256'), `${utilSha}  src/convert.ts\n`);
-  console.log(`wrote coverage/converter-istanbul.json (${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out)`);
+  console.log(`corrected report: ${Object.keys(fixed.statementMap).length} code lines; ${Object.keys(entry.statementMap).length - Object.keys(fixed.statementMap).length} blank, comment, structural or type-only lines left out`);
 
   // CONTROLS, on the synthetic corpus: the instrument must be able to say "not covered".
   //   1  the line that copies a draft marker runs only for a poem that has one. With the whole corpus it
   //      is covered; with synthetic--meta (the only fixture with a marker) left out it must be uncovered.
-  //   2  the correction itself, read back from the file just written: raw c8 must have credited at least one
+  //   2  the correction itself, in the corrected report: raw c8 must have credited at least one
   //      line of code outside the bundle (else the trap this script exists for is absent, and it refuses),
-  //      and in the written JSON EVERY such line must have 0 hits.
+  //      and in the corrected report EVERY such line must have 0 hits.
   const marker = source.split('\n').findIndex((l) => /index:\s*timelineIndex/.test(l)) + 1;
   if (!marker) throw new Error('control: the draft-marker line was not found in convert.ts');
   const synthetic = path.join(ROOT, 'fixtures', 'synthetic');
@@ -206,12 +196,12 @@ function main() {
     const withAll = lineHits(run(synthetic).entry, bundled).get(marker);
     const withoutMeta = lineHits(run(without).entry, bundled).get(marker);
     const c1 = withAll > 0 && withoutMeta === 0;
-    const written = Object.values(JSON.parse(fs.readFileSync(outFile, 'utf8')))[0];
+    const written = fixed;
     const outsideSet = new Set(outside);
     const writtenOutside = Object.entries(written.statementMap).filter(([, loc]) => outsideSet.has(loc.start.line));
     const c2 = rawCredited > 0 && writtenOutside.length === outside.length && writtenOutside.every(([i]) => written.s[i] === 0);
     console.log(`control 1 (draft-marker line ${marker}: covered with the marker fixture, uncovered without): ${c1 ? 'holds' : `FAILED (${withAll}, ${withoutMeta})`}`);
-    console.log(`control 2 (raw c8 credited ${rawCredited} of ${outside.length} code lines outside the bundle; all ${outside.length} are 0 in the written JSON): ${c2 ? 'holds' : 'FAILED'}`);
+    console.log(`control 2 (raw c8 credited ${rawCredited} of ${outside.length} code lines outside the bundle; all ${outside.length} are 0 in the corrected report): ${c2 ? 'holds' : 'FAILED'}`);
     ok = c1 && c2;
     if (!ok) logEvent('error', 'control-not-fired', { count: [c1, c2].filter((c) => !c).length });
   } finally {

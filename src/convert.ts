@@ -1,6 +1,8 @@
 /* eslint import/prefer-default-export: off */
 import { generateJSON, generateHTML } from '@tiptap/html';
 import { getSchema } from '@tiptap/core';
+import { parse, serializeOuter } from 'parse5';
+import type { DefaultTreeAdapterMap } from 'parse5';
 import { compareStrings } from './history';
 import poemExtensions from './extensions';
 
@@ -60,6 +62,63 @@ const endOfBlock = (
   return blocks === 0 ? 0 : size - 1;
 };
 
+// The frame as the old player's browser parsed it: parse5 is the HTML standard's tree construction, as in Chromium.
+// generateJSON parses with zeed-dom, which stops at a closing tag with nothing open to close and drops every word
+// after it (midst-format #78). Here a stray </div> or </span> is ignored and a stray </p> becomes an empty <p></p>,
+// a <p> opened inside a <p> closes the first, and the regex passes below see the browser's tree, not the file's.
+// The elements a browser lays out as a line of their own; anything else at the top level is inline content.
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'dl', 'dt', 'dd', 'blockquote', 'pre', 'table', 'hr', 'address', 'article', 'aside', 'details', 'fieldset', 'figure', 'figcaption', 'footer', 'form', 'header', 'main', 'nav', 'section']);
+type Parse5Node = DefaultTreeAdapterMap['childNode'];
+const isBlock = (n: Parse5Node) => BLOCK_TAGS.has(n.nodeName);
+const isBlankText = (n: Parse5Node) =>
+  n.nodeName === '#text' && 'value' in n && /^[ \n\r\t\f]*$/.test(n.value);
+// A comment draws nothing: `<!--StartFragment-->`, left by a paste from a word processor, is no line (clement-7074f29f).
+const drawsNothing = (n: Parse5Node) => isBlankText(n) || n.nodeName === '#comment';
+// The top level as the lines a browser draws, each made a <p>: a run of inline content between blocks is an
+// anonymous line, and a <div> holding no block is a line. TipTap makes a paragraph of each already, so the number of
+// blocks is unchanged; written as <p>, the paragraph rules (dropTrailingBreaks, dropInvisibleParagraphs) reach them:
+// a bare <br> between paragraphs, or <div><br></div>, is one line in a browser (midst-editor #15).
+const asParagraphLines = (nodes: Parse5Node[]): string => {
+  let out = '';
+  let run: Parse5Node[] = [];
+  const flush = () => {
+    if (run.length > 0 && !run.every(drawsNothing))
+      out += `<p>${run.map((n) => serializeOuter(n)).join('')}</p>`;
+    else out += run.map((n) => serializeOuter(n)).join('');
+    run = [];
+  };
+  for (const n of nodes) {
+    if (!isBlock(n)) {
+      run.push(n);
+    } else {
+      flush();
+      if (n.nodeName === 'div' && 'childNodes' in n && !n.childNodes.some(isBlock)) {
+        const attrs = 'attrs' in n ? n.attrs.map((a: { name: string; value: string }) => ` ${a.name}="${a.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`).join('') : '';
+        out += `<p${attrs}>${n.childNodes.map((c: Parse5Node) => serializeOuter(c)).join('')}</p>`;
+      } else if (n.nodeName === 'div' && 'childNodes' in n) {
+        // A <div> holding blocks: its children are lines as at the top level, so a <br> in an anonymous run inside it
+        // is a <p> the paragraph rules reach (#85). TipTap flattened such a div into its blocks already.
+        out += asParagraphLines(n.childNodes);
+      } else out += serializeOuter(n);
+    }
+  }
+  flush();
+  return out;
+};
+
+export const asBrowserParsed = (html: string) => {
+  const htmlEl = parse(`<!DOCTYPE html><body>${html}`).childNodes.find(
+    (n) => n.nodeName === 'html'
+  );
+  const body =
+    htmlEl && 'childNodes' in htmlEl
+      ? htmlEl.childNodes.find((n) => n.nodeName === 'body')
+      : undefined;
+  if (!body || !('childNodes' in body))
+    throw new Error('parse5 returned a document with no <body>');
+  return asParagraphLines(body.childNodes);
+};
+
 // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
 // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
 const frameJSON = (html: string) =>
@@ -67,17 +126,71 @@ const frameJSON = (html: string) =>
     preserveWhitespace: true,
   });
 
+// A private-use character, lengthened until neither the frame nor its text (character references decoded) contains
+// it, nor `other`: every block that reads as it, or starts with it, is one this file put there.
+const freshMark = (source: string, text: string, other = '', base = '\uE000'): string => {
+  let mark = base;
+  while (source.includes(mark) || text.includes(mark) || (other !== '' && other.includes(mark))) mark += base;
+  return mark;
+};
+
+// The converted block of the one <p> whose data-line-number is `line`, or undefined when no <p> or more than one
+// carries it. The <p> is marked by a private-use character at the start of its content, and the paragraphs
+// dropInvisibleParagraphs removes are marked as in keptBlock, so one parse gives the kept blocks before it. When that
+// <p> is itself one that is removed, the line maps to the last kept block before it, as keptBlock maps an index.
+const NUMBERED_P = /<p\b[^>]*?\sdata-line-number="([^"]*)"[^>]*>/gi;
+const numberedBlock = (source: string, line: number): number | undefined => {
+  const hits: RegExpExecArray[] = [];
+  NUMBERED_P.lastIndex = 0; // the library targets ES2019: no String.prototype.matchAll
+  for (let m = NUMBERED_P.exec(source); m !== null; m = NUMBERED_P.exec(source))
+    if (m[1].trim() !== '' && Number(m[1]) === line) hits.push(m);
+  if (hits.length !== 1) return undefined;
+  const open = hits[0];
+  const at = open.index + open[0].length;
+  const end = source.indexOf('</p>', at);
+  if (end < 0) return undefined;
+  const paragraph = source.slice(open.index, end + 4);
+  const invisible = dropInvisibleParagraphs(paragraph) === '';
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
+  const target = freshMark(source, text);
+  const dropped = freshMark(source, text, target, '\uE001'); // a different character, so neither mark starts the other
+  const withTarget = invisible
+    ? `${source.slice(0, open.index)}<p>${target}</p>${source.slice(end + 4)}`
+    : `${source.slice(0, at)}${target}${source.slice(at)}`;
+  const doc = schema.nodeFromJSON(frameJSON(markInvisibleParagraphs(withTarget, dropped)));
+  let kept = 0;
+  for (let i = 0; i < doc.childCount; i += 1) {
+    const t = doc.child(i).textContent;
+    // A dropped paragraph is checked first: its mark must never be read as the target's.
+    if (t === dropped) continue;
+    if (t.startsWith(target)) return invisible ? kept - 1 : kept;
+    kept += 1;
+  }
+  return undefined; // the mark did not survive the parse: the index is used instead
+};
+
 // The recorded line counts the paragraphs dropInvisibleParagraphs removes, since they were in the old player's
 // document, so the line is mapped through the drop: to the last block kept at or before it, which is the line
 // itself when it was kept. Each dropped paragraph is first replaced by a marker paragraph, so the line can be read
 // against the frame's blocks as the old player had them. The selection markers are already gone, and were never
 // counted: the old editor's lineNumber is the data-line-number of the <p> holding the selection, numbered over the
 // editor's <p> elements (reflowLineNumbers and captureTimelineFrame in the old player's source, kept in midst-web as
-// e2e/legacy-player/Midst.ts), and a marker is a <span>. Returns the block index in the converted
-// document, or -1 for none.
-const keptBlock = (source: string, lineNumber: string): number => {
+// e2e/legacy-player/Midst.ts, where both are commented out because that player does not record), and a marker is a
+// <span>. Returns the block index in the converted document, or -1 for none.
+//
+// A recorded line is found by that attribute when exactly one <p> carries it (227,271 of the archive's 233,233
+// frames, midst-format #69): the old editor renumbered only when the count of <p> changed, so an index can name the
+// wrong line after paragraphs moved. With no such <p>, or more than one, the index is used as before. A missing,
+// null or blank lineNumber names no line (Number() would read null and '' as 0).
+const keptBlock = (source: string, lineNumber: unknown): number => {
+  const blank =
+    lineNumber === undefined ||
+    lineNumber === null ||
+    (typeof lineNumber === 'string' && lineNumber.trim() === '');
   const line = Number(lineNumber);
-  if (!Number.isFinite(line) || line < 0) return -1;
+  if (blank || !Number.isFinite(line) || line < 0) return -1;
+  const numbered = numberedBlock(source, Math.floor(line));
+  if (numbered !== undefined) return numbered;
   if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
   // A private-use character, lengthened until neither the frame nor its text (character references decoded)
   // contains it, so every block that reads as the mark is a <p>mark</p> this function put there.
@@ -129,12 +242,33 @@ const ZERO_WIDTH_ONLY_ELEMENT = new RegExp(
 // span mark, so it unwraps the span and the FEFF becomes a paragraph of its own: the poem starts a line
 // lower than written. Remove such elements before parsing. Zero-width characters beside visible text are
 // left alone, and so are <p><br></p> and <p></p>. Repeats so a marker wrapped in a marker goes too.
+//
+// Rangy's markers are display:none, but a zero-width-only element without it is drawn: a paragraph holding only
+// one is a line in the old player, as a browser draws the zero-width character's line box (#71). Removing it left
+// <p></p>, which dropInvisibleParagraphs then drops, losing that line. So a paragraph whose only content is such
+// SHOWN elements, with hidden ones, empty inline tags and whitespace around them, becomes <p><br></p> first: the
+// blank line it was, without the invisible character. Elsewhere, beside text or outside a paragraph, they go as before.
+const ZERO_WIDTH_TAGS = 'span|em|strong|i|b|u|s|strike|a';
+const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
+const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
+const ZERO_WIDTH_LINE_FILL = `[ \\n\\r\\f]|<(?:${ZERO_WIDTH_TAGS})\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>|<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>|</(?:${ZERO_WIDTH_TAGS})>`;
+const SHOWN_ZERO_WIDTH_LINE = new RegExp(
+  `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
+  'gi'
+);
+// A hidden inline element left empty, e.g. a Rangy marker whose FEFF a bold command had wrapped in <b>, once that
+// <b> is removed, perhaps still holding empty inline tags: display:none draws nothing, so it goes too, and the paragraph
+// rule can then see what is left (#88). Never past a closing tag of its own name, so no stray closing tag is left.
+const EMPTY_HIDDEN_ELEMENT = new RegExp(
+  `<(span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b(?=[^>]*display\\s*:\\s*none)[^>]*>(?:</?(?!\\1\\b)(?:span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b[^>]*>)*</\\1>`,
+  'gi'
+);
 export const dropZeroWidthOnlyElements = (html: string) => {
-  let current = html;
-  let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+  let current = html.replace(SHOWN_ZERO_WIDTH_LINE, '$1<br>$2');
+  let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   while (next !== current) {
     current = next;
-    next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+    next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   }
   return current;
 };
@@ -222,7 +356,7 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    const source = dropZeroWidthOnlyElements(el.content);
+    const source = dropZeroWidthOnlyElements(asBrowserParsed(el.content));
     const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     const doc = schema.nodeFromJSON(jsonContentAtFrame);

@@ -1,22 +1,4 @@
 {
-  "html-shape--bare-br-between-paragraphs": {
-    "differ": 1,
-    "editorMore": 1,
-    "editorFewer": 0,
-    "why": "midst-editor #15"
-  },
-  "html-shape--div-as-line": {
-    "differ": 1,
-    "editorMore": 1,
-    "editorFewer": 0,
-    "why": "midst-editor #15"
-  },
-  "html-shape--nested-paragraphs": {
-    "differ": 1,
-    "editorMore": 0,
-    "editorFewer": 1,
-    "why": "editor shows FEWER lines (midst-editor #15)"
-  },
   "synthetic--tabs": {
     "differ": 1,
     "editorMore": 1,

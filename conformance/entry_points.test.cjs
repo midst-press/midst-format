@@ -18,9 +18,9 @@ const srcTree = (name, schema, zeroWidth = (u) => u) => {
   fs.mkdirSync(root, { recursive: true });
   const mine = fs.readFileSync(path.join(DIR, 'normalise.cjs'), 'utf8');
   const rule = mine.match(/const TRAILING_BREAK = .*;/)[0];
-  // The zero-width declarations, from ZERO_WIDTH_CHARS to the end of ZERO_WIDTH_ONLY_ELEMENT.
+  // The zero-width declarations, from ZERO_WIDTH_CHARS to the end of EMPTY_HIDDEN_ELEMENT (midst-format #71, #88).
   const from = mine.indexOf('const ZERO_WIDTH_CHARS =');
-  const to = mine.indexOf(');\n', mine.indexOf('const ZERO_WIDTH_ONLY_ELEMENT =')) + 3;
+  const to = mine.indexOf(');\n', mine.indexOf('const EMPTY_HIDDEN_ELEMENT =')) + 3;
   // The invisible-paragraph declarations, from INLINE_TAGS to the end of INVISIBLE_PARAGRAPH.
   const pFrom = mine.indexOf('const INLINE_TAGS =');
   const pTo = mine.indexOf(');\n', mine.indexOf('const INVISIBLE_PARAGRAPH =')) + 3;
