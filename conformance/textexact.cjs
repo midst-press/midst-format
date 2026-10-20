@@ -10,12 +10,12 @@ const SEP = ' ';
 // The source as the old player's browser built it (midst-format #81): parse5 is the HTML standard's tree construction,
 // as in Chromium. Read lexically, `<p>a<p>b`, a stray `</p>` or `<p><br><p>` counted line starts the browser never
 // drew. This is textexact's own parse and walk, not the converter's asBrowserParsed, and no converter rule runs on it:
-// the rules below then read the browser's tree, serialised, instead of the tags as written. Two things are done on the
+// the rules below then read the browser's tree, serialised, instead of the tags as written. Three things are done on the
 // tree, as a browser lays it out:
 //   - an element with display:none draws nothing, whatever it holds, so it goes with everything inside it (a Rangy
 //     marker whose FEFF a bold command wrapped in <b>, archive poem #28);
-//   - a <div> holding blocks is a container, not a line: its blocks are its lines, and inline content beside them is an
-//     anonymous line of its own (`<div><br><p>` is two lines, not three).
+//   - a <div> holding blocks is a container, not a line: its blocks are its lines (`<div><br><p>` is two lines, not three);
+//   - inline content beside blocks, at the top level or in a container, is an anonymous line of its own, written as a <p>.
 const { parse, serializeOuter } = require('parse5');
 const BLOCKS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'ul', 'ol', 'blockquote', 'pre']);
 const isHidden = (n) => (n.attrs || []).some((a) => a.name === 'style' && /display\s*:\s*none/i.test(a.value));
@@ -25,24 +25,27 @@ const dropHidden = (n) => {
   n.childNodes.forEach(dropHidden);
 };
 const drawsNothing = (n) => (n.nodeName === '#text' && /^[ \n\r\t\f]*$/.test(n.value)) || n.nodeName === '#comment';
-const lines = (nodes, top = false) => {
+// Inline content beside blocks is a line box of its own, as a browser draws it (midst-format #13): <p>a</p>x is two
+// lines, a and x, and <p>a</p><br>x is three (the <br> ends an empty one). So each run of it, at the top level or in a
+// container, up to the next block or the end, becomes a <p> here on the tree, before any rule below: the paragraph
+// rules then decide whether that run draws a line. A shown zero-width span alone is one, an empty <span> or a space in
+// an <em> is not (midst-format #77, measured in Chromium). A run of whitespace or comments alone is left as it is.
+const lines = (nodes) => {
   let out = '';
   let run = [];
-  const flush = (inContainer) => {
+  const flush = () => {
     const html = run.map((c) => serializeOuter(c)).join('');
-    out += inContainer && !run.every(drawsNothing) ? `<p>${html}</p>` : html;
+    out += run.length > 0 && !run.every(drawsNothing) ? `<p>${html}</p>` : html;
     run = [];
   };
-  // The top level is left to wrapLooseRuns below, which runs after the zero-width rules.
-  const inContainer = !top && nodes.some((c) => BLOCKS.has(c.nodeName));
   for (const n of nodes) {
     if (!BLOCKS.has(n.nodeName)) run.push(n);
     else {
-      flush(inContainer);
+      flush();
       out += n.nodeName === 'div' && n.childNodes.some((c) => BLOCKS.has(c.nodeName)) ? lines(n.childNodes) : serializeOuter(n);
     }
   }
-  flush(false);
+  flush();
   return out;
 };
 const asBuilt = (html) => {
@@ -50,7 +53,7 @@ const asBuilt = (html) => {
   const body = htmlEl && htmlEl.childNodes.find((n) => n.nodeName === 'body');
   if (!body) throw new Error('parse5 returned a document with no <body>');
   dropHidden(body);
-  return lines(body.childNodes, true);
+  return lines(body.childNodes);
 };
 const NAMED = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 const decode = (s) =>
@@ -107,15 +110,9 @@ const dropUndrawnParagraphs = (html) => {
     current = next;
   }
 };
-// Inline content after a closed block is a line box of its own, as a browser draws it (midst-format #13): <p>a</p>x
-// is two lines, a and x, and <p>a</p><br>x is three (the <br> ends an empty one). So a run of it, up to the next
-// block, reads as its own paragraph, and the rules below then apply to it unchanged: a lone <br> there is still one
-// empty line, as it always was. A run of whitespace alone is no line, and is left to the rule below that drops it.
-const wrapLooseRuns = (html) =>
-  html.replace(/(<\/(?:p|div)>)((?:(?!<\/?(?:p|div)\b)[\s\S])+)/gi, (m, close, run) => (/\S/.test(run) ? `${close}<p>${run}</p>` : m));
 const textOf = (html, { editor = false } = {}) =>
   decode(
-    (editor ? html : dropUndrawnBreaks(wrapLooseRuns(dropUndrawnElements(dropUndrawnParagraphs(dropHiddenElements(asBuilt(html)))))))
+    (editor ? html : dropUndrawnBreaks(dropUndrawnElements(dropUndrawnParagraphs(dropHiddenElements(asBuilt(html))))))
       // Whitespace BETWEEN paragraphs belongs to no line; the editor drops it, and so does this.
       .replace(/(^|<\/(?:p|div)>)\s+(?=<(?:p|div)\b|$)/gi, '$1')
       // One separator per line start: every <p>, <div> (how a browser saves a typed line) and <br>. Never collapsed, so the NUMBER
