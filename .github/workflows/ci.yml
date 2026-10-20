@@ -44,6 +44,7 @@ jobs:
           cache: npm
           cache-dependency-path: midst-format/package-lock.json
       - run: npm ci --ignore-scripts
+        working-directory: midst-format
       # TipTap 2.5.4 for the conformance oracle, which models the old app (conformance/oracle, #102).
       - run: npm ci --ignore-scripts --prefix conformance/oracle
         working-directory: midst-format
