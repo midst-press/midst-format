@@ -1,6 +1,7 @@
 /* eslint import/prefer-default-export: off */
 import { generateJSON, generateHTML } from '@tiptap/html';
 import { getSchema } from '@tiptap/core';
+import { parse, serialize } from 'parse5';
 import { compareStrings } from './history';
 import poemExtensions from './extensions';
 
@@ -58,6 +59,23 @@ const endOfBlock = (
   for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
   // The end of the last block's content is one before its closing token.
   return blocks === 0 ? 0 : size - 1;
+};
+
+// The frame as the old player's browser parsed it: parse5 is the HTML standard's tree construction, as in Chromium.
+// generateJSON parses with zeed-dom, which stops at a closing tag with nothing open to close and drops every word
+// after it (midst-format #78). Here a stray </div> or </span> is ignored and a stray </p> becomes an empty <p></p>,
+// a <p> opened inside a <p> closes the first, and the regex passes below see the browser's tree, not the file's.
+export const asBrowserParsed = (html: string) => {
+  const htmlEl = parse(`<!DOCTYPE html><body>${html}`).childNodes.find(
+    (n) => n.nodeName === 'html'
+  );
+  const body =
+    htmlEl && 'childNodes' in htmlEl
+      ? htmlEl.childNodes.find((n) => n.nodeName === 'body')
+      : undefined;
+  if (!body || !('childNodes' in body))
+    throw new Error('parse5 returned a document with no <body>');
+  return serialize(body);
 };
 
 // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
@@ -236,7 +254,7 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    const source = dropZeroWidthOnlyElements(el.content);
+    const source = dropZeroWidthOnlyElements(asBrowserParsed(el.content));
     const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     const doc = schema.nodeFromJSON(jsonContentAtFrame);

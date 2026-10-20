@@ -530,3 +530,30 @@ describe('a paragraph that drew nothing', () => {
     expect(c.text).toBe('<p>zq</p><p>xv</p>');
   });
 });
+
+// A closing tag with nothing open to close: a browser ignores it (a stray </p> becomes an empty <p></p>) and keeps
+// every word after it. The editor's parser stopped there and dropped them (midst-format #78).
+describe('a stray closing tag', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a stray </p>', '<p>zq</p></p><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['two stray </p>', '<p>zq</p></p></p><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </div>', '<p>zq</p></div><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </span>', '<p>zq</p></span><p>xv</p>', '<p>zq</p><p>xv</p>'],
+    ['a stray </font> before bare text', '<p>zq</p></font>xv', '<p>zq</p><p>xv</p>'],
+    ['a stray </p> inside a paragraph', '<p>zq</p><p>x</p>v</p><p>wy</p>', '<p>zq</p><p>x</p><p>v</p><p>wy</p>'],
+    ['a stray </p> first', '</p><p>xv</p>', '<p>xv</p>'],
+    // Converted correctly before #78 too: kept so the re-parse cannot regress it.
+    ['a <p> inside a <p>, then its stray close', '<p>zq<p>xv</p></p><p>wy</p>', '<p>zq</p><p>xv</p><p>wy</p>'],
+    // The <br> ends its paragraph once the next <p> closes it, so it draws one line, as in a browser.
+    ['the html-shape fixture', '<p>zq</p></p></p><p><br><p>xv</p>', '<p>zq</p><p></p><p>xv</p>'],
+  ])('keeps every word after %s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
