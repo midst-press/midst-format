@@ -47,6 +47,9 @@ const cases = [
   // midst-format #71: only display:none hides one; a paragraph holding only a shown one is a line, with no text.
   ['a shown zero-width-only span alone in a paragraph is a line', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
   ['a shown zero-width-only span alone in a paragraph is not dropped', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p>b</p>', false],
+  // midst-format #98: a space between two shown zero-width characters is drawn (9.6px in Chromium), so it is text.
+  ['a space between two shown zero-width spans is kept', '<p>a</p><p><span>\u200B</span> <span>\u200B</span></p><p>b</p>', '<p>a</p><p> </p><p>b</p>', true, 'editor'],
+  ['a space between two shown zero-width spans is not dropped', '<p>a</p><p><span>\u200B</span> <span>\u200B</span></p><p>b</p>', '<p>a</p><p></p><p>b</p>', false, 'editor'],
   ['a hidden marker alone in a paragraph is no line', '<p>a</p><p><span style="display: none;">&#xFEFF;</span></p><p>b</p>', '<p>a</p><p>b</p>', true],
   ['a span with text is drawn', '<p>a<span>x</span>b</p>', '<p>ab</p>', false],
   // Text after a closed block is a line of its own (midst-format #13).

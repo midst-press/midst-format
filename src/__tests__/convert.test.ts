@@ -416,12 +416,26 @@ describe('a selection marker left in an old file', () => {
     ['a shown zero-width span', '<p><span>&#x200B;</span></p>'],
     ['Rangy’s class without display:none, which a browser draws', '<p><span class="rangySelectionBoundary">&#xFEFF;</span></p>'],
     ['a shown one wrapped in a shown one', '<p><span><span>&#xFEFF;</span></span></p>'],
-    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`],
     ['an attribute on the paragraph', '<p data-line-number="2"><span>&#x200B;</span></p>'],
   ])('keeps a paragraph holding only %s as a blank line', (_name, html) => {
     expect(dropZeroWidthOnlyElements(`<p>zq</p>${html}<p>xv</p>`)).toMatch(
       /^<p>zq<\/p><p\b[^>]*><br><\/p><p>xv<\/p>$/
     );
+  });
+
+  // #98: the line keeps its whitespace. A space between two shown ones is drawn in Chromium (9.6px, in innerText).
+  it.each([
+    ['a space between two shown ones', '<p><span>&#x200B;</span> <span>&#x200B;</span></p>', '<p> <br></p>'],
+    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`, '<p>  <br></p>'],
+    ['a newline after a shown one', '<p><span>&#x200B;</span>\n</p>', '<p>\n<br></p>'],
+  ])('keeps the whitespace of a line holding only %s', (_name, html, out) => {
+    expect(dropZeroWidthOnlyElements(html)).toBe(out);
+  });
+
+  it('keeps a space between two shown ones through the whole conversion', () => {
+    const c = convert(['<p>zq</p><p><span>&#x200B;</span> <span>&#x200B;</span></p><p>xv</p>']);
+    expect(paragraphs(c.text)).toEqual(['zq', ' ', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
   });
 
   it.each([
