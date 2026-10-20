@@ -247,7 +247,8 @@ const ZERO_WIDTH_ONLY_ELEMENT = new RegExp(
 // one is a line in the old player, as a browser draws the zero-width character's line box (#71). Removing it left
 // <p></p>, which dropInvisibleParagraphs then drops, losing that line. So a paragraph whose only content is such
 // SHOWN elements, with hidden ones, empty inline tags and whitespace around them, becomes <p><br></p> first: the
-// blank line it was, without the invisible character. Elsewhere, beside text or outside a paragraph, they go as before.
+// blank line it was, without the invisible character. Beside text they go as before. Outside any paragraph
+// asBrowserParsed has already made their run a <p>, so the same rule keeps that line (#77).
 const ZERO_WIDTH_TAGS = 'span|em|strong|i|b|u|s|strike|a';
 const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
 const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
