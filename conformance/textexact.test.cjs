@@ -65,6 +65,16 @@ const cases = [
   ['div wrapping paragraphs is not a line', '<div><p>a</p><p>b</p></div>', '<p>a</p><p>b</p>', true],
   ['text then a div of paragraphs', 'a<div><p><br></p><p>b</p></div>', '<p>a</p><p><br></p><p>b</p>', true],
   ['nested wrapping divs', '<div><div><p>a</p></div></div>', '<p>a</p>', true],
+  // The source as a browser built it (midst-format #81): tags as written no longer count lines the browser never drew.
+  ['a <p> opened in a <p> holding only a <br> closes it: one empty line, not two', '<p>one</p><p><br><p>two</p>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['stray </p>s draw nothing (the fixture html-shape--nested-paragraphs)', '<p>one</p></p></p><p><br><p>two</p>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['a <br> before a <p> inside a <div> is one line, not two', 'one<div><br><p>two</p></div>', '<p>one</p><p></p><p>two</p>', true, 'editor'],
+  ['a hidden marker whose FEFF is in <b> draws nothing', '<p>one</p><p><span style="display: none;"><b>&#xFEFF;</b></span></p><p>two</p>', '<p>one</p><p>two</p>', true, 'editor'],
+  ['hidden text is not drawn', '<p>one<span style="display:none">zq</span></p>', '<p>one</p>', true, 'editor'],
+  // #78: a stray </p> made the old parse drop every word after it. Read as a browser builds it, the words are there,
+  // so an editor that lost them still differs: textexact can still disagree with the converter.
+  ['a word lost after a stray </p> is found', '<p>one</p></p><p>two</p>', '<p>one</p>', false, 'editor'],
+  ['a word lost after a stray </div> is found', '<p>one</p></div><p>two</p>', '<p>one</p>', false, 'editor'],
   // The editor draws a trailing hard break, so its <p><br></p> is two lines, like the browser's <p><br><br></p>.
   ['editor trailing hard break is a line', '<p><br><br></p>', '<p><br></p>', true, 'editor'],
   ['editor trailing hard break is not nothing', '<p><br><br></p>', '<p></p>', false, 'editor'],
