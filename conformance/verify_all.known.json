@@ -17,6 +17,12 @@
     "textBad": 9316,
     "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
   },
+  "#13": {
+    "frames": 5973,
+    "badFrames": 0,
+    "textBad": 1,
+    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs. Expected separator-only, as in html-shape--div-leading-br (textexact reads the <br> and the <p> as two line starts, #81); the archive frame itself not yet checked beyond separators. Counts from Violet's Studio run at f0d6e39, 20 Oct"
+  },
   "#32": {
     "frames": 3338,
     "badFrames": 0,
@@ -28,6 +34,12 @@
     "badFrames": 0,
     "textBad": 697,
     "why": "line separators only: textexact reads tags lexically (midst-format #81); render_lines draws it the same as Chromium. Counts from Violet's Studio run at #79, 20 Oct"
+  },
+  "#44": {
+    "frames": 1658,
+    "badFrames": 0,
+    "textBad": 1,
+    "why": "one frame, after #89 (#85): Chromium (render_lines) and the conversion agree; textexact differs. Expected separator-only, as in html-shape--div-leading-br (textexact reads the <br> and the <p> as two line starts, #81); the archive frame itself not yet checked beyond separators. Counts from Violet's Studio run at f0d6e39, 20 Oct"
   },
   "#47": {
     "frames": 8889,
