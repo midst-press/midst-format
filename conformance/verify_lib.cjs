@@ -227,6 +227,80 @@ function logRow(r, log = logEvent) {
   }
 }
 
+// KNOWN differences, a ratchet (--known FILE, midst-format #72), as render_lines has. The file maps a poem's
+// index, written as printed ("#08"), to the failure expected of it:
+//   { "#08": { "frames": 1234, "badFrames": 0, "textBad": 1, "why": "midst-editor #15" } }
+// A poem that fails exactly so is known. Everything else is unexpected, and the run fails:
+//   - a failing or erroring poem with no entry;
+//   - a poem whose counts differ from its entry, either way, so a fix also needs an edit here, with its reason;
+//   - an error, or a failed endpoint, meta or history-length check: never known, since these are not counts of
+//     frames that differ but a conversion that is wrong in kind.
+// And an entry that no longer occurs is stale, and fails the run too: its poem now passes, or no poem has its
+// index. `frames` is the identity check: indices move when the archive changes, so an entry must not excuse
+// whatever poem comes to sit at its index. A different frame count is a different poem, so it is unexpected.
+const KNOWN_KEY = /^#\d{2,}$/;
+const idOf = (r) => `#${String(r.index).padStart(2, '0')}`;
+
+// Refuses a known file that is not the shape above, naming the entry. Keys are indices, never poem names.
+function validateKnown(known) {
+  if (known === null || typeof known !== 'object' || Array.isArray(known)) throw new ConformanceError('KNOWN_SHAPE', 0);
+  for (const [id, k] of Object.entries(known)) {
+    const counts = k && typeof k === 'object' ? ['frames', 'badFrames', 'textBad'].map((f) => k[f]) : [];
+    if (!KNOWN_KEY.test(id) || counts.length !== 3 || !counts.every((n) => Number.isInteger(n) && n >= 0) || typeof k.why !== 'string')
+      throw new ConformanceError('KNOWN_SHAPE', Object.keys(known).indexOf(id) + 1);
+    if (k.badFrames + k.textBad === 0) throw new ConformanceError('KNOWN_SHAPE', Object.keys(known).indexOf(id) + 1);
+  }
+  return known;
+}
+
+// One row against the known list: 'pass' (passes, no entry), 'stale' (passes, but has an entry), 'known' (fails
+// exactly as its entry says) or 'unexpected'.
+function knownVerdict(r, known) {
+  const id = idOf(r);
+  const k = Object.hasOwn(known, id) ? known[id] : undefined;
+  if (passed(r)) return k ? 'stale' : 'pass';
+  const asKnown =
+    k !== undefined &&
+    !r.error &&
+    r.endpointOk &&
+    r.metaOk &&
+    r.histLenOk &&
+    r.frames === k.frames &&
+    r.trajectoryBad === k.badFrames &&
+    r.textBad === k.textBad;
+  return asKnown ? 'known' : 'unexpected';
+}
+
+// The run against the known list: how many rows were known or unexpected, and the stale entries, by index. An
+// entry is stale when its poem passes or no poem has its index; a failing poem at its index that does not match
+// it is counted as unexpected instead.
+function checkKnown(rows, known) {
+  const verdicts = rows.map((r) => knownVerdict(r, known));
+  const count = (v) => verdicts.filter((x) => x === v).length;
+  const failingIds = new Set(rows.filter((r) => !passed(r)).map(idOf));
+  const stale = Object.keys(known).filter((id) => !failingIds.has(id));
+  return { known: count('known'), unexpected: count('unexpected'), stale };
+}
+
+// The exit status under --known: the failures it expects no longer fail the run; anything it does not expect does,
+// and so does a stale entry. A control that did not fire, or an empty corpus, still fails it, as without --known.
+const knownExitCode = (s, k) => (s.total > 0 && s.ctl === s.ctlN && k.unexpected === 0 && k.stale.length === 0 ? 0 : 1);
+
+// What is appended to a row's printed line under --known. Counts only, as in the line itself.
+function knownMark(r, known) {
+  const k = Object.hasOwn(known, idOf(r)) ? known[idOf(r)] : undefined;
+  switch (knownVerdict(r, known)) {
+    // A passing row's line names its archive file, so a stale entry is reported by index alone, after the rows.
+    case 'pass':
+    case 'stale':
+      return '';
+    case 'known':
+      return ' (known)';
+    default:
+      return k ? ` UNEXPECTED (known frames/badFrames/textBad: ${k.frames}/${k.badFrames}/${k.textBad})` : ' UNEXPECTED (not known)';
+  }
+}
+
 // The stderr log for the run as a whole: every reason summarise gives a non-zero exit that a row's own log
 // does not already carry.
 function logSummary(s, log = logEvent) {
@@ -245,4 +319,9 @@ module.exports = {
   step,
   logRow,
   logSummary,
+  validateKnown,
+  knownVerdict,
+  checkKnown,
+  knownMark,
+  knownExitCode,
 };
