@@ -591,6 +591,50 @@ describe('a stray closing tag', () => {
   });
 });
 
+// TipTap's Bold and Italic read these styles; under TipTap 2 in Node they had no styles to read and the span was plain
+// (#102). A browser draws them bold or italic, and so does the converted poem.
+describe('a span styled bold or italic', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['font-weight: bold', '<p><span style="font-weight: bold">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-weight: 700', '<p><span style="font-weight: 700">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-weight: bolder', '<p><span style="font-weight: bolder">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-style: italic', '<p><span style="font-style: italic">zq</span></p>', '<p><em>zq</em></p>'],
+    ['font-weight: 300', '<p><span style="font-weight: 300">zq</span></p>', '<p>zq</p>'],
+    ['a <b> with font-weight: normal', '<p><b style="font-weight: normal">zq</b></p>', '<p>zq</p>'],
+    ['an <i> with font-style: normal', '<p><i style="font-style: normal">zq</i></p>', '<p>zq</p>'],
+  ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// Stored text is HTML as the HTML standard serializes it (docs/LIBRARY.md, #102): TipTap 2's zeed-dom wrote a raw
+// U+00A0, &quot; and &apos;, and history offsets count these characters.
+describe('stored text as the HTML standard writes it', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a no-break space as &nbsp;', '<p>z&nbsp;q</p>', '<p>z&nbsp;q</p>'],
+    ['a raw no-break space as &nbsp;', '<p>z\u00a0q</p>', '<p>z&nbsp;q</p>'],
+    ['" as itself', '<p>z&quot;q</p>', '<p>z"q</p>'],
+    ["' as itself", '<p>z&apos;q</p>', "<p>z'q</p>"],
+    ['&, < and > escaped', '<p>z&amp;&lt;&gt;q</p>', '<p>z&amp;&lt;&gt;q</p>'],
+  ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
 // A browser draws a run of inline content between blocks as a line, and a <div> holding no block as a line, and in
 // both a last <br> draws nothing more. Written as <p>, the paragraph rules reach them (midst-editor #15).
 describe('the top-level lines', () => {

@@ -16,6 +16,9 @@ Each version is a tag `vX.Y.Z` on `main`, and each app takes it by vendoring the
   in files converted by 0.5.0 differ from those converted by 0.6.0. The text renders the same.
 - **A span styled bold or italic** (`font-weight: bold`, `700` or `bolder`; `font-style: italic`) now converts to
   bold or italic, as TipTap reads it in a browser. TipTap 2 in Node dropped it. No archived poem has one.
+- **A line holding only shown zero-width elements keeps its whitespace** (#100), as Chromium draws it (`<p> </p>`),
+  where 0.5.0 wrote an empty line. This too can move history offsets against files converted by 0.5.0.
+- **THIRD_PARTY_NOTICES** gives each bundled package directory its own section (#101). The notices are unchanged.
 - **The conformance oracle stays on TipTap 2.5.4** (`conformance/oracle`), the old app's version, and maps its
   `&nbsp;` and quote forms to the standard's before comparing. With the 0.6.0 converter, all 54 archived poems
   verify, and render the same lines in the editor as in a browser.
