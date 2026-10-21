@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { getSchema } from '@tiptap/core';
-import { generateJSON } from '@tiptap/html';
+import { generateJSON } from '@tiptap/html/server';
 import { reconstruct } from '../history';
 import poemExtensions from '../extensions';
 import {

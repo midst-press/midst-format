@@ -13,7 +13,7 @@ describe("this repository", () => {
       path.join(ROOT, "package-lock.json"),
       path.join(ROOT, "package.json"),
     );
-    expect(want).toBe("2.5.4");
+    expect(want).toBe("3.32.0");
     // Positive control on the corpus: the lockfile does hold TipTap entries to check.
     expect(seen).toBeGreaterThan(10);
     expect(problems).toEqual([]);

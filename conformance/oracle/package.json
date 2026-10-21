@@ -1,0 +1,33 @@
+{
+  "name": "midst-format-conformance-oracle",
+  "private": true,
+  "description": "TipTap 2.5.4, as the old Midst app ran it, for conformance/normalise.cjs only (#102). Its own lockfile, so the library can be on TipTap 3.",
+  "dependencies": {
+    "@tiptap/core": "2.5.4",
+    "@tiptap/html": "2.5.4",
+    "@tiptap/pm": "2.5.4",
+    "@tiptap/starter-kit": "2.5.4"
+  },
+  "overrides": {
+    "@tiptap/core": "2.5.4",
+    "@tiptap/extension-blockquote": "2.5.4",
+    "@tiptap/extension-bold": "2.5.4",
+    "@tiptap/extension-bullet-list": "2.5.4",
+    "@tiptap/extension-code": "2.5.4",
+    "@tiptap/extension-code-block": "2.5.4",
+    "@tiptap/extension-document": "2.5.4",
+    "@tiptap/extension-dropcursor": "2.5.4",
+    "@tiptap/extension-gapcursor": "2.5.4",
+    "@tiptap/extension-hard-break": "2.5.4",
+    "@tiptap/extension-heading": "2.5.4",
+    "@tiptap/extension-history": "2.5.4",
+    "@tiptap/extension-horizontal-rule": "2.5.4",
+    "@tiptap/extension-italic": "2.5.4",
+    "@tiptap/extension-list-item": "2.5.4",
+    "@tiptap/extension-ordered-list": "2.5.4",
+    "@tiptap/extension-paragraph": "2.5.4",
+    "@tiptap/extension-strike": "2.5.4",
+    "@tiptap/extension-text": "2.5.4",
+    "@tiptap/pm": "2.5.4"
+  }
+}

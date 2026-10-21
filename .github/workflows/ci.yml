@@ -24,6 +24,8 @@ jobs:
         with:
           python-version: "3.14"
       - run: npm ci --ignore-scripts
+      # TipTap 2.5.4 for the conformance oracle, which models the old app (conformance/oracle, #102).
+      - run: npm ci --ignore-scripts --prefix conformance/oracle
       # pre-commit's hook environments, kept between runs as the Gitea runner keeps them: an empty cache rebuilds them
       # on every job. Keyed on the config that defines them and the Python they were built with.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -49,6 +51,9 @@ jobs:
           cache: npm
           cache-dependency-path: midst-format/package-lock.json
       - run: npm ci --ignore-scripts
+        working-directory: midst-format
+      # TipTap 2.5.4 for the conformance oracle, which models the old app (conformance/oracle, #102).
+      - run: npm ci --ignore-scripts --prefix conformance/oracle
         working-directory: midst-format
       - name: the transcribed TipTap config and rules must still match src/
         working-directory: midst-format

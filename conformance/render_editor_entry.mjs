@@ -1,13 +1,7 @@
-// Bundled into the Chromium page by render_lines.cjs: a REAL TipTap editor with midst-editor's
-// extension set (normalise.cjs mirrors it, provenance-checked), so the editor side is rendered, not modelled.
+// Bundled into the Chromium page by render_lines.cjs: a REAL TipTap editor with the poem schema itself
+// (src/extensions.ts, the one the editor uses), so the editor side is rendered, not modelled.
 import { Editor } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-const extensions = [
-  StarterKit.configure({
-    bulletList: false, orderedList: false, blockquote: false, code: false, codeBlock: false,
-    heading: false, horizontalRule: false, listItem: false, strike: false,
-  }),
-];
+import extensions from '../src/extensions';
 let editor = null;
 window.renderEditor = (html) => {
   const el = document.getElementById('e');
