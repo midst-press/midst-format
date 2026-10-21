@@ -47,6 +47,9 @@ const cases = [
   // midst-format #71: only display:none hides one; a paragraph holding only a shown one is a line, with no text.
   ['a shown zero-width-only span alone in a paragraph is a line', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
   ['a shown zero-width-only span alone in a paragraph is not dropped', '<p>a</p><p><span>\u200B</span></p><p>b</p>', '<p>a</p><p>b</p>', false],
+  // midst-format #98: a space between two shown zero-width characters is drawn (9.6px in Chromium), so it is text.
+  ['a space between two shown zero-width spans is kept', '<p>a</p><p><span>\u200B</span> <span>\u200B</span></p><p>b</p>', '<p>a</p><p> </p><p>b</p>', true, 'editor'],
+  ['a space between two shown zero-width spans is not dropped', '<p>a</p><p><span>\u200B</span> <span>\u200B</span></p><p>b</p>', '<p>a</p><p></p><p>b</p>', false, 'editor'],
   ['a hidden marker alone in a paragraph is no line', '<p>a</p><p><span style="display: none;">&#xFEFF;</span></p><p>b</p>', '<p>a</p><p>b</p>', true],
   ['a span with text is drawn', '<p>a<span>x</span>b</p>', '<p>ab</p>', false],
   // Text after a closed block is a line of its own (midst-format #13).
@@ -58,7 +61,18 @@ const cases = [
   ['text after a paragraph is not joined to it', '<p>a</p>x', '<p>ax</p>', false],
   ['a <br> then text after a paragraph is an empty line then a line', '<p>a</p><br>x<p>b</p>', '<p>a</p><p><br>x</p><p>b</p>', true],
   ['a lone <br> between paragraphs is one empty line, as before', '<p>a</p><br><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
-  ['a zero-width-only element after a paragraph is no line', '<p>a</p><span>\u200B</span><p>b</p>', '<p>a</p><p>b</p>', true],
+  // midst-format #77, each measured in Chromium (plain and contenteditable): a shown zero-width span outside any paragraph
+  // is a line box of its own; an empty or space-only inline element there draws nothing.
+  ['a shown zero-width span between paragraphs is a line', '<p>a</p><span>\u200B</span><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
+  ['a shown zero-width span between paragraphs is not dropped', '<p>a</p><span>\u200B</span><p>b</p>', '<p>a</p><p>b</p>', false],
+  ['a shown zero-width span before the first paragraph is a line', '<span>&#x200B;</span><p>a</p><p>b</p>', '<p></p><p>a</p><p>b</p>', true, 'editor'],
+  ['a shown zero-width span after the last paragraph is a line', '<p>a</p><p>b</p><span>\u200B</span>', '<p>a</p><p>b</p><p></p>', true, 'editor'],
+  ['two shown zero-width spans in one run are one line', '<p>a</p><span>\u200B</span><em>\u200B</em><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
+  ['a shown zero-width span last in a container is a line', '<div><p>a</p><span>\u200B</span></div><p>b</p>', '<p>a</p><p></p><p>b</p>', true, 'editor'],
+  ['a shown zero-width span beside text outside a paragraph adds no line', 'x<span>\u200B</span><p>a</p>', '<p>x</p><p>a</p>', true],
+  ['a hidden marker between paragraphs is no line', '<p>a</p><span style="display: none;">&#xFEFF;</span><p>b</p>', '<p>a</p><p>b</p>', true],
+  ['an empty span between paragraphs is no line', '<p>a</p><span></span><p>b</p>', '<p>a</p><p>b</p>', true],
+  ['a space in an <em> between paragraphs is no line', '<p>a</p><em> </em><p>b</p>', '<p>a</p><p>b</p>', true],
   ['div is a line, as a browser saves it', 'a<div><br></div>', '<p>a</p><p><br></p>', true],
   ['div line dropped', 'a<div>b</div>', '<p>ab</p>', false],
   ['space between divs ignored', '<div>a</div> <div>b</div>', '<p>a</p><p>b</p>', true],

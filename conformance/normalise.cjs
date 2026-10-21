@@ -1,7 +1,12 @@
 // TRANSCRIBED VERBATIM from jshafto/midst-app src/main/util.ts lines 11-23.
 // provenance.cjs asserts this matches the source bytes; if the source changes, the assert fails.
-const { generateJSON, generateHTML } = require('@tiptap/html');
-const StarterKit = require('@tiptap/starter-kit').default || require('@tiptap/starter-kit');
+// TipTap comes from conformance/oracle/, its own package at 2.5.4, the version the old app ran: this file models the
+// old app, so it must not move with the library (now on TipTap 3, #102). Run `npm ci --prefix conformance/oracle` first.
+const oracle = require('module').createRequire(require('path').join(__dirname, 'oracle', 'package.json'));
+const { generateJSON, generateHTML } = oracle('@tiptap/html');
+const StarterKit = oracle('@tiptap/starter-kit').default || oracle('@tiptap/starter-kit');
+const HardBreak = oracle('@tiptap/extension-hard-break').default || oracle('@tiptap/extension-hard-break');
+// The option set mirrors src/extensions.ts (provenance.cjs). Under TipTap 2 the options TipTap 3 added are no-ops.
 const extensions = [
   StarterKit.configure({
     bulletList: false,
@@ -12,8 +17,14 @@ const extensions = [
     heading: false,
     horizontalRule: false,
     listItem: false,
+    hardBreak: false,
     strike: false,
+    link: false,
+    underline: false,
+    listKeymap: false,
+    trailingNode: false,
   }),
+  HardBreak.extend({ linebreakReplacement: false }),
 ];
 // Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
 // TRAILING_BREAK mirrors convert.ts (provenance.cjs asserts the two regexes are identical):
@@ -39,9 +50,11 @@ const NOT_HIDDEN = '(?![^>]*display\\s*:\\s*none)';
 const SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
 const ZERO_WIDTH_LINE_FILL = `[ \\n\\r\\f]|<(?:${ZERO_WIDTH_TAGS})\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>|<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>|</(?:${ZERO_WIDTH_TAGS})>`;
 const SHOWN_ZERO_WIDTH_LINE = new RegExp(
-  `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
+  `(<p\\b[^>]*>)((?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*)(</p>)`,
   'gi'
 );
+// What such a line keeps: its whitespace, without the tags and zero-width characters around it (#98).
+const ZERO_WIDTH_OR_TAG = new RegExp(`<[^>]*>|[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY}`, 'gi');
 // A hidden inline element left empty, e.g. a Rangy marker whose FEFF a bold command had wrapped in <b>, once that
 // <b> is removed, perhaps still holding empty inline tags: display:none draws nothing, so it goes too, and the paragraph
 // rule can then see what is left (#88). Never past a closing tag of its own name, so no stray closing tag is left.
@@ -50,7 +63,11 @@ const EMPTY_HIDDEN_ELEMENT = new RegExp(
   'gi'
 );
 const dropZeroWidthOnlyElements = (html) => {
-  let current = html.replace(SHOWN_ZERO_WIDTH_LINE, '$1<br>$2');
+  let current = html.replace(
+    SHOWN_ZERO_WIDTH_LINE,
+    (_m, open, fill, close) =>
+      `${open}${fill.replace(ZERO_WIDTH_OR_TAG, '')}<br>${close}`
+  );
   let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '').replace(EMPTY_HIDDEN_ELEMENT, '');
   while (next !== current) {
     current = next;
@@ -114,11 +131,18 @@ const asBrowserParsed = (html) => {
 };
 // The order matches convertMidstFile:
 // dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))).
+// Stored text is HTML as the HTML standard serializes it (docs/LIBRARY.md). The oracle's TipTap 2 (zeed-dom) differs
+// in three characters of text (of &, <, >, ", ', U+00A0, tab and others probed, #102): a no-break space it writes raw, the standard as &nbsp;; " and ' it writes as &quot; and
+// &apos;, the standard raw. Mapped here, once, in text only (between tags), so every comparison is exact.
+const asStandardText = (html) =>
+  html
+    .replace(/\u00a0/g, '&nbsp;')
+    .replace(/(^|>)([^<]*)/g, (whole, open, text) => open + text.replace(/&quot;/g, '"').replace(/&apos;/g, "'"));
 const normalise = (html) =>
-  generateHTML(
+  asStandardText(generateHTML(
     generateJSON(dropTrailingBreaks(dropInvisibleParagraphs(dropZeroWidthOnlyElements(asBrowserParsed(html)))), extensions, {
       preserveWhitespace: true,
     }),
     extensions,
-  );
+  ));
 module.exports = { extensions, normalise, asBrowserParsed, TRAILING_BREAK, dropTrailingBreaks, dropZeroWidthOnlyElements, dropInvisibleParagraphs };

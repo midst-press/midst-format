@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { getSchema } from '@tiptap/core';
-import { generateJSON } from '@tiptap/html';
+import { generateJSON } from '@tiptap/html/server';
 import { reconstruct } from '../history';
 import poemExtensions from '../extensions';
 import {
@@ -416,7 +416,6 @@ describe('a selection marker left in an old file', () => {
     ['a shown zero-width span', '<p><span>&#x200B;</span></p>'],
     ['Rangy’s class without display:none, which a browser draws', '<p><span class="rangySelectionBoundary">&#xFEFF;</span></p>'],
     ['a shown one wrapped in a shown one', '<p><span><span>&#xFEFF;</span></span></p>'],
-    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`],
     ['an attribute on the paragraph', '<p data-line-number="2"><span>&#x200B;</span></p>'],
   ])('keeps a paragraph holding only %s as a blank line', (_name, html) => {
     expect(dropZeroWidthOnlyElements(`<p>zq</p>${html}<p>xv</p>`)).toMatch(
@@ -424,11 +423,27 @@ describe('a selection marker left in an old file', () => {
     );
   });
 
+  // #98: the line keeps its whitespace. A space between two shown ones is drawn in Chromium (9.6px, in innerText).
+  it.each([
+    ['a space between two shown ones', '<p><span>&#x200B;</span> <span>&#x200B;</span></p>', '<p> <br></p>'],
+    ['a shown one beside a hidden one, with spaces', `<p> ${HIDDEN}<em>&#x200B;</em> </p>`, '<p>  <br></p>'],
+    ['a newline after a shown one', '<p><span>&#x200B;</span>\n</p>', '<p>\n<br></p>'],
+  ])('keeps the whitespace of a line holding only %s', (_name, html, out) => {
+    expect(dropZeroWidthOnlyElements(html)).toBe(out);
+  });
+
+  it('keeps a space between two shown ones through the whole conversion', () => {
+    const c = convert(['<p>zq</p><p><span>&#x200B;</span> <span>&#x200B;</span></p><p>xv</p>']);
+    expect(paragraphs(c.text)).toEqual(['zq', ' ', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
+  });
+
   it.each([
     ['a hidden marker alone', `<p>${HIDDEN}</p>`, '<p></p>'],
     // The emptied hidden wrapper goes too (#88): kept, it held its paragraph past the invisible-paragraph rule.
     ['a shown one inside a hidden wrapper', '<p><em style="display:none"><span>&#x200B;</span></em></p>', '<p></p>'],
     ['a shown one beside text', '<p>zq<span>&#x200B;</span></p>', '<p>zq</p>'],
+    // In a conversion asBrowserParsed has already made such a run a <p>, so it is kept as a line (#77, below).
     ['a shown one outside any paragraph', '<span>&#x200B;</span><p>zq</p>', '<p>zq</p>'],
     // cyril-9137f1ee: JavaScript's \\s also matches these, which must not be deleted as filler.
     ['a raw no-break space beside a shown one', '<p>\u00A0<span>&#x200B;</span></p>', '<p>\u00A0</p>'],
@@ -442,6 +457,23 @@ describe('a selection marker left in an old file', () => {
   it('a paragraph holding only a shown one stays a blank line through the whole conversion', () => {
     const c = convert([`<p>zq</p><p><span>&#x200B;</span></p><p>${HIDDEN}</p><p>xv</p>`]);
     expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
+    expect(c.text).not.toMatch(ZERO_WIDTH);
+  });
+
+  // #77, measured in Chromium: outside any paragraph a shown one is a line box of its own. asBrowserParsed makes the
+  // run a <p> first, so the paragraph rule above keeps it; an empty or space-only inline element there draws nothing.
+  it.each([
+    ['before the first paragraph', '<span>&#x200B;</span><p>zq</p><p>xv</p>', ['', 'zq', 'xv']],
+    ['between paragraphs', '<p>zq</p><span>&#x200B;</span><p>xv</p>', ['zq', '', 'xv']],
+    ['after the last paragraph', '<p>zq</p><p>xv</p><span>&#x200B;</span>', ['zq', 'xv', '']],
+    ['last in a container', '<div><p>zq</p><span>&#x200B;</span></div><p>xv</p>', ['zq', '', 'xv']],
+    ['beside text, adding no line', 'zq<span>&#x200B;</span><p>xv</p>', ['zq', 'xv']],
+    ['hidden, adding no line', `<p>zq</p>${HIDDEN}<p>xv</p>`, ['zq', 'xv']],
+    ['an empty span, adding no line', '<p>zq</p><span></span><p>xv</p>', ['zq', 'xv']],
+    ['a space in an <em>, adding no line', '<p>zq</p><em> </em><p>xv</p>', ['zq', 'xv']],
+  ])('outside any paragraph, %s', (_name, html, lines) => {
+    const c = convert([html]);
+    expect(paragraphs(c.text)).toEqual(lines);
     expect(c.text).not.toMatch(ZERO_WIDTH);
   });
 });
@@ -555,6 +587,50 @@ describe('a stray closing tag', () => {
     // The <br> ends its paragraph once the next <p> closes it, so it draws one line, as in a browser.
     ['the html-shape fixture', '<p>zq</p></p></p><p><br><p>xv</p>', '<p>zq</p><p></p><p>xv</p>'],
   ])('keeps every word after %s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// TipTap's Bold and Italic read these styles; under TipTap 2 in Node they had no styles to read and the span was plain
+// (#102). A browser draws them bold or italic, and so does the converted poem.
+describe('a span styled bold or italic', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['font-weight: bold', '<p><span style="font-weight: bold">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-weight: 700', '<p><span style="font-weight: 700">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-weight: bolder', '<p><span style="font-weight: bolder">zq</span></p>', '<p><strong>zq</strong></p>'],
+    ['font-style: italic', '<p><span style="font-style: italic">zq</span></p>', '<p><em>zq</em></p>'],
+    ['font-weight: 300', '<p><span style="font-weight: 300">zq</span></p>', '<p>zq</p>'],
+    ['a <b> with font-weight: normal', '<p><b style="font-weight: normal">zq</b></p>', '<p>zq</p>'],
+    ['an <i> with font-style: normal', '<p><i style="font-style: normal">zq</i></p>', '<p>zq</p>'],
+  ])('%s', (_, frame, expected) => {
+    expect(convertFrame(frame)).toBe(expected);
+  });
+});
+
+// Stored text is HTML as the HTML standard serializes it (docs/LIBRARY.md, #102): TipTap 2's zeed-dom wrote a raw
+// U+00A0, &quot; and &apos;, and history offsets count these characters.
+describe('stored text as the HTML standard writes it', () => {
+  const convertFrame = (content: string) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({ editorTimelineFrames: [{ content, lineNumber: '0', timestamp: 1 }] })
+      )
+    ).text;
+
+  it.each([
+    ['a no-break space as &nbsp;', '<p>z&nbsp;q</p>', '<p>z&nbsp;q</p>'],
+    ['a raw no-break space as &nbsp;', '<p>z\u00a0q</p>', '<p>z&nbsp;q</p>'],
+    ['" as itself', '<p>z&quot;q</p>', '<p>z"q</p>'],
+    ["' as itself", '<p>z&apos;q</p>', "<p>z'q</p>"],
+    ['&, < and > escaped', '<p>z&amp;&lt;&gt;q</p>', '<p>z&amp;&lt;&gt;q</p>'],
+  ])('%s', (_, frame, expected) => {
     expect(convertFrame(frame)).toBe(expected);
   });
 });

@@ -86,7 +86,8 @@ describe("the built library", () => {
       path.join(dist, "convert", "index.cjs"),
       "utf8",
     );
-    expect(cjs).toContain('require("@tiptap/html")');
+    expect(cjs).toContain('require("@tiptap/pm/model")');
+    expect(cjs).toContain('require("happy-dom")');
     expect(
       fs.readFileSync(path.join(dist, "extensions", "index.mjs"), "utf8"),
     ).toContain('from "@tiptap/starter-kit"');
@@ -133,12 +134,15 @@ describe("the built library", () => {
     });
     expect(pkg.peerDependencies).toEqual({
       "@tiptap/core": rootPkg.dependencies["@tiptap/core"],
-      "@tiptap/html": rootPkg.dependencies["@tiptap/html"],
+      "@tiptap/extension-hard-break":
+        rootPkg.dependencies["@tiptap/extension-hard-break"],
+      "@tiptap/pm": rootPkg.dependencies["@tiptap/pm"],
       "@tiptap/starter-kit": rootPkg.dependencies["@tiptap/starter-kit"],
+      "happy-dom": rootPkg.dependencies["happy-dom"],
     });
-    // Only @tiptap/html is optional: the other two are needed by `extensions`, which web takes.
+    // Only happy-dom is optional: the others are needed by `extensions`, which web takes.
     expect(pkg.peerDependenciesMeta).toEqual({
-      "@tiptap/html": { optional: true },
+      "happy-dom": { optional: true },
     });
     expect(Object.keys(pkg.exports)).toEqual([
       "./history",
@@ -187,7 +191,7 @@ describe("bundled packages and their notices", () => {
   const found = (inputs) =>
     JSON.parse(run(`const { bundledPackages } = await import(${JSON.stringify(path.join(root, "tools", "build-lib.mjs"))}); console.log(JSON.stringify([...bundledPackages(${JSON.stringify(inputs)})]))`));
 
-  it("names each package once, scoped ones included, from the innermost node_modules", () => {
+  it("names each package directory once, scoped ones included, from the innermost node_modules", () => {
     expect(
       found([
         "src/convert.ts",
@@ -197,10 +201,40 @@ describe("bundled packages and their notices", () => {
         "node_modules/parse5/node_modules/entities/lib/decode.js",
       ]),
     ).toEqual([
-      ["parse5", "node_modules/parse5"],
-      ["@zq/qz-lib", "node_modules/@zq/qz-lib"],
-      ["entities", "node_modules/parse5/node_modules/entities"],
+      ["node_modules/parse5", "parse5"],
+      ["node_modules/@zq/qz-lib", "@zq/qz-lib"],
+      ["node_modules/parse5/node_modules/entities", "entities"],
     ]);
+  });
+
+  // #86: keyed by name, the second copy's path overwrote the first, and one version's licence stood for both.
+  it("keeps two copies of one package as two packages", () => {
+    expect(
+      found([
+        "node_modules/entities/lib/decode.js",
+        "node_modules/parse5/node_modules/entities/lib/decode.js",
+      ]),
+    ).toEqual([
+      ["node_modules/entities", "entities"],
+      ["node_modules/parse5/node_modules/entities", "entities"],
+    ]);
+  });
+
+  it("gives each copy of one package its own notice, with its own version and licence", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "midst-notices-"));
+    try {
+      for (const [dir, version] of [["node_modules/zq", "2.0.0"], ["node_modules/qx/node_modules/zq", "1.0.0"]]) {
+        fs.mkdirSync(path.join(base, dir), { recursive: true });
+        fs.writeFileSync(path.join(base, dir, "package.json"), `{"version":"${version}","license":"MIT"}`);
+        fs.writeFileSync(path.join(base, dir, "LICENSE"), `Zq ${version} licence, copyright Qz ${version}`);
+      }
+      const out = notices([["node_modules/zq", "zq"], ["node_modules/qx/node_modules/zq", "zq"]], base);
+      expect([...out.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual(["zq 1.0.0 (MIT)", "zq 2.0.0 (MIT)"]);
+      expect(out).toContain("## zq 1.0.0 (MIT)\n\n```\nZq 1.0.0 licence, copyright Qz 1.0.0\n```");
+      expect(out).toContain("## zq 2.0.0 (MIT)\n\n```\nZq 2.0.0 licence, copyright Qz 2.0.0\n```");
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it("refuses a bundled package that has no licence file, so nothing ships without its notice", () => {
@@ -208,9 +242,9 @@ describe("bundled packages and their notices", () => {
     try {
       fs.mkdirSync(path.join(base, "node_modules", "zq"), { recursive: true });
       fs.writeFileSync(path.join(base, "node_modules", "zq", "package.json"), '{"version":"1.0.0"}');
-      expect(() => notices([["zq", "node_modules/zq"]], base)).toThrow(/zq is bundled but has no licence file/);
+      expect(() => notices([["node_modules/zq", "zq"]], base)).toThrow(/zq \(node_modules\/zq\) is bundled but has no licence file/);
       fs.writeFileSync(path.join(base, "node_modules", "zq", "LICENSE.md"), "Zq licence\r\n");
-      expect(notices([["zq", "node_modules/zq"]], base)).toContain("## zq 1.0.0 (see below)\n\n```\nZq licence\n```");
+      expect(notices([["node_modules/zq", "zq"]], base)).toContain("## zq 1.0.0 (see below)\n\n```\nZq licence\n```");
     } finally {
       fs.rmSync(base, { recursive: true, force: true });
     }

@@ -20,7 +20,13 @@ const SOURCE = { "build-label": "buildLabel" };
 export const sourceOf = (name) => SOURCE[name] ?? name;
 // Entries another entry imports. They stay external, so their code exists once.
 const INTERNAL = ["history", "extensions"];
-const PEERS = ["@tiptap/core", "@tiptap/html", "@tiptap/starter-kit"];
+const PEERS = [
+  "@tiptap/core",
+  "@tiptap/extension-hard-break",
+  "@tiptap/pm",
+  "@tiptap/starter-kit",
+  "happy-dom",
+];
 const FORMATS = [
   { format: "cjs", file: "index.cjs" },
   { format: "esm", file: "index.mjs" },
@@ -55,21 +61,23 @@ const internalImports = (file) => ({
 });
 
 // The packages a bundle carries code from (#80), by the metafile's inputs: a path's last node_modules/<name>, or
-// node_modules/@scope/<name>. TipTap stays external, so it is never an input.
+// node_modules/@scope/<name>. TipTap stays external, so it is never an input. Keyed by the package's directory, not
+// its name: two copies of one package (a nested one at another version) are two packages, each with its own
+// licence and copyright lines (#86).
 export function bundledPackages(inputPaths) {
   const found = new Map();
   for (const input of inputPaths) {
     const m = input.replace(/\\/g, "/").match(/^(.*node_modules\/)((?:@[^/]+\/)?[^/]+)\//);
-    if (m) found.set(m[2], m[1] + m[2]);
+    if (m) found.set(m[1] + m[2], m[2]);
   }
   return found;
 }
 
 const LICENCE_FILE = /^(licen[cs]e|copying)(\.(md|txt))?$/i;
 
-// THIRD_PARTY_NOTICES.md: every bundled package's name, version and licence text, in name order. The licences
-// (MIT, BSD) require the notice in every copy, and the apps ship this build. A package with no licence file
-// fails the build rather than ship without its notice.
+// THIRD_PARTY_NOTICES.md: every bundled package's name, version and licence text, one section per package
+// directory, in name order and then directory order. The licences (MIT, BSD) require the notice in every copy, and
+// the apps ship this build. A package with no licence file fails the build rather than ship without its notice.
 export function thirdPartyNotices(packages, base = root) {
   const parts = [
     "# Third-party notices",
@@ -77,11 +85,12 @@ export function thirdPartyNotices(packages, base = root) {
     "This build of @midst-press/midst-format includes code from the packages below. Each one's licence and",
     "copyright notice follows, as its licence requires.",
   ];
-  for (const name of [...packages.keys()].sort()) {
-    const dir = path.join(base, packages.get(name));
+  const byName = ([dirA, a], [dirB, b]) => (a < b ? -1 : a > b ? 1 : dirA < dirB ? -1 : dirA > dirB ? 1 : 0);
+  for (const [relative, name] of [...packages].sort(byName)) {
+    const dir = path.join(base, relative);
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8"));
     const file = fs.readdirSync(dir).filter((f) => LICENCE_FILE.test(f)).sort()[0];
-    if (!file) throw new Error(`${name} is bundled but has no licence file to carry`);
+    if (!file) throw new Error(`${name} (${relative}) is bundled but has no licence file to carry`);
     const text = fs.readFileSync(path.join(dir, file), "utf8").replace(/\r\n/g, "\n").trimEnd();
     parts.push("", `## ${name} ${manifest.version} (${manifest.license ?? "see below"})`, "", "```", text, "```");
   }
@@ -98,7 +107,7 @@ async function bundle(outDir, name, { format, file }) {
     target: "es2019",
     sourcemap: false,
     legalComments: "none",
-    external: ["@tiptap/*"],
+    external: ["@tiptap/*", "happy-dom"],
     plugins: [internalImports(file)],
     // Warnings and errors are thrown below, so none is lost to a stream nobody reads.
     logLevel: "silent",
@@ -180,9 +189,9 @@ export async function buildLib(outDir) {
         version: rootPackage.version,
         private: true,
         peerDependencies,
-        // Only `convert` needs @tiptap/html. Optional, so an app that takes `history` and `extensions` (web)
+        // Only `convert` needs happy-dom. Optional, so an app that takes `history` and `extensions` (web)
         // is not given it by npm, which installs every required peer (clement-7074f29f, review of #54).
-        peerDependenciesMeta: { "@tiptap/html": { optional: true } },
+        peerDependenciesMeta: { "happy-dom": { optional: true } },
         exports: exportsMap,
       },
       null,
