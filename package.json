@@ -1,7 +1,7 @@
 {
   "name": "@midst-press/midst-format",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "The .midst file format: spec, converters between generations, and the conformance suite.",
   "license": "AGPL-3.0-or-later",
   "scripts": {
