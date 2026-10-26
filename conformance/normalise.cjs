@@ -6,6 +6,8 @@ const oracle = require('module').createRequire(require('path').join(__dirname, '
 const { generateJSON, generateHTML } = oracle('@tiptap/html');
 const StarterKit = oracle('@tiptap/starter-kit').default || oracle('@tiptap/starter-kit');
 const HardBreak = oracle('@tiptap/extension-hard-break').default || oracle('@tiptap/extension-hard-break');
+// TipTap 2's StarterKit has no underline; the library's TipTap 3 StarterKit does, and keeps it (#140). Same mark.
+const Underline = oracle('@tiptap/extension-underline').default || oracle('@tiptap/extension-underline');
 // The option set mirrors src/extensions.ts (provenance.cjs). Under TipTap 2 the options TipTap 3 added are no-ops.
 const extensions = [
   StarterKit.configure({
@@ -18,13 +20,12 @@ const extensions = [
     horizontalRule: false,
     listItem: false,
     hardBreak: false,
-    strike: false,
     link: false,
-    underline: false,
     listKeymap: false,
     trailingNode: false,
   }),
   HardBreak.extend({ linebreakReplacement: false }),
+  Underline,
 ];
 // Parse options mirror convertMidstFile's call (preserveWhitespace: true, as the editor parses).
 // TRAILING_BREAK mirrors convert.ts (provenance.cjs asserts the two regexes are identical):
