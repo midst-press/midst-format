@@ -22,9 +22,10 @@ zips.sort();
 if(!zips.length){ console.log(`no .midst.zip files in ${ARCHIVE}`); logEvent('error','no-poems'); process.exit(1); }
 const lostTotal=new Map(); let checked=0, poemsWithLoss=0;
 // CONTROL: a tag we know StarterKit is configured to drop must be reported as lost
-const ctl=normalise('<p>a <s>struck</s> b</p>');
-console.log(`control  <s> through normalise -> ${JSON.stringify(ctl)}`);
-console.log(`control  's' reported lost     -> ${tags('<p>a <s>x</s> b</p>').has('s') && !tags(ctl).has('s')}\n`);
+// (<code>: strike and underline are kept since #140, so the control is a mark still off.)
+const ctl=normalise('<p>a <code>coded</code> b</p>');
+console.log(`control  <code> through normalise -> ${JSON.stringify(ctl)}`);
+console.log(`control  'code' reported lost     -> ${tags('<p>a <code>x</code> b</p>').has('code') && !tags(ctl).has('code')}\n`);
 for(const [i,zip] of zips.entries()){
   const id=`#${String(i+1).padStart(2,'0')}`;
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'ml-'));

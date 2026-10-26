@@ -50,27 +50,31 @@ Fixture: `fixtures/synthetic/synthetic--rangy-span.midst.zip`.
 
 **Status: no occurrence found in the real corpus. Fixture retained as a regression guard.**
 
-`extensions` in the converter disables `strike`, `bulletList`, `orderedList`, `listItem`, `blockquote`,
-`code`, `codeBlock`, `heading` and `horizontalRule`. Anything using those is silently discarded:
+`extensions` in the converter disables `bulletList`, `orderedList`, `listItem`, `blockquote`,
+`code`, `codeBlock`, `heading` and `horizontalRule`. Anything using those is silently discarded.
+Strikethrough and underline were in this list until #140 and are now kept:
 
     <b>bold</b>            -> <strong>bold</strong>     preserved (renamed)
     <i>it</i>              -> <em>it</em>               preserved (renamed)
     <br>                   -> <br>                     preserved
-    <s>struck</s>          -> struck                    MARK DISCARDED
+    <s>struck</s>          -> <s>struck</s>             preserved (since #140)
+    <u>under</u>           -> <u>under</u>              preserved (since #140)
     <h1>head</h1>          -> head                      DISCARDED
     <code>c</code>         -> c                         DISCARDED
     <ul><li>i</li></ul>    -> <p>i</p>                  COLLAPSED
 
 ⚠️ **The trajectory assertion cannot see this**, because it normalises both sides with the same
 function, so anything normalisation does uniformly is invisible to it. `npm run markloss` is the
-separate instrument that can, and its own control is a `<s>` fixture confirmed to be reported as lost
-before any real run.
+separate instrument that can, and its own control is a `<code>` fragment confirmed to be reported as lost
+before any real run (it was `<s>` until strikethrough was kept, #140).
 
 Across the real corpus, markloss reports only `span` (deviation 1 above). No poem was found using a
 disabled mark. That is a measurement over the corpus we hold, not a guarantee about future poems — the
 editor can still produce them, so the guard stays.
 
-Fixture: `fixtures/synthetic/synthetic--strikethrough.midst.zip`.
+Fixtures: `fixtures/synthetic/synthetic--strikethrough.midst.zip` and `synthetic--underline.midst.zip`, now
+guards that both marks are kept. Before #140, a scan of the 54-poem archive found 0 frames with `<u`, `<s>`, `<strike`,
+`<del` or a `text-decoration` style (violet-14057653, 26 Oct 2026), so keeping them changes no existing poem.
 
 ## 3. Edit granularity is coarsened where two edits land in one frame
 
