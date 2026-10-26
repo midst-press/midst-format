@@ -37,7 +37,7 @@ beforeAll(() => {
   notZip = path.join(tmp, 'not-a-zip.midst.zip');
   fs.writeFileSync(notZip, 'this is not a zip archive');
   srcSame = srcTree('same', same);
-  srcFlipped = srcTree('flipped', (b) => same(b).replace('strike: false', 'strike: true'));
+  srcFlipped = srcTree('flipped', (b) => same(b).replace('code: false', 'code: true'));
   srcNoBlock = srcTree('noblock', (b) => b.replace('const extensions = [', 'const schema = ['));
   // The zero-width set without U+2060: the harness would no longer mirror the converter.
   srcZeroWidth = srcTree('zerowidth', same, (u) => u.replace(', 0x2060]', ']'));

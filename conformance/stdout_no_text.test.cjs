@@ -31,7 +31,7 @@ test('markloss names a lossy or failing poem by its index and prints no archive 
   const corpus = path.join(dir, 'corpus');
   fs.mkdirSync(corpus);
   // Sorted by archive name: loss (#1), not-json (#2), two-entries (#3).
-  const loss = zipOf('a-loss', { 'inner.midst': B(['<p>a</p>', `<p>a <s>${MARK.frame}</s></p>`]) });
+  const loss = zipOf('a-loss', { 'inner.midst': B(['<p>a</p>', `<p>a <code>${MARK.frame}</code></p>`]) });
   const notJson = zipOf('b-not-json', CASES['not-json'].entries);
   const two = zipOf('c-two-entries', CASES['two-entries'].entries);
   for (const z of [loss, notJson, two]) fs.renameSync(z, path.join(corpus, path.basename(z)));
@@ -39,7 +39,7 @@ test('markloss names a lossy or failing poem by its index and prints no archive 
   const r = run('markloss.cjs', [], { MIDST_CORPUS: corpus });
   const out = r.stdout + r.stderr;
   // Controls: the run reached every poem, and each marker was somewhere it could have escaped from.
-  expect(r.stdout).toMatch(/^LOSS #01 {2}dropped tags: s\(x1\)$/m);
+  expect(r.stdout).toMatch(/^LOSS #01 {2}dropped tags: code\(x1\)$/m);
   expect(r.stdout).toMatch(/^ERR {2}#02 {2}stage:parse class:SyntaxError$/m);
   expect(r.stdout).toMatch(/^ERR {2}#03 {2}stage:list class:ConformanceError code:ENTRY_COUNT count:2$/m);
   expect(fs.readdirSync(corpus).join(' ')).toContain(MARK.object);
