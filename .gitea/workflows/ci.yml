@@ -28,8 +28,11 @@ permissions:
 defaults:
   run:
     shell: /opt/homebrew/bin/bash -eo pipefail {0}
+# github-main carries code from GitHub: on its PRs every job here waits for a person to add the github-reviewed
+# label (Stuart, 27 Oct, mirror-tools #15). The return path removes that label before it pushes new GitHub code.
 jobs:
   gates:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed'))
     runs-on: stuart-m3ultra-canary
     env:
       NVMRC: .nvmrc
@@ -55,6 +58,7 @@ jobs:
           SKIP=conformance-synthetic "$RUNNER_TEMP/precommit/bin/pre-commit" run --all-files --show-diff-on-failure
 
   conformance:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed'))
     name: conformance, synthetic corpus
     runs-on: stuart-m3ultra-canary
     env:
