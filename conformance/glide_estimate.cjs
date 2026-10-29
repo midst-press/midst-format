@@ -69,11 +69,27 @@ function readPoem(zip, convertMidstFile) {
     execFileSync('unzip', ['-q', '-j', '-o', zip, '-x', '__MACOSX/*', '-d', tmp], { stdio: 'pipe' });
     const cands = fs.readdirSync(tmp).filter((n) => n.endsWith('.midst') && !n.startsWith('._'));
     if (cands.length !== 1) throw new Error(`expected one .midst in the zip, found ${cands.length}`);
-    const converted = JSON.parse(convertMidstFile(fs.readFileSync(path.join(tmp, cands[0]), 'utf8')));
-    return { history: converted.history, meta: converted.meta ?? {} };
+    const bytes = fs.readFileSync(path.join(tmp, cands[0]));
+    const converted = JSON.parse(convertMidstFile(bytes.toString('utf8')));
+    // The .midst inside, hashed: two zips of the same poem can differ only in their wrapping (midst-editor #350).
+    const midstHash = crypto.createHash('sha256').update(bytes).digest('hex');
+    return { history: converted.history, meta: converted.meta ?? {}, midstHash };
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+}
+
+/** Every .midst.zip under the corpus, in the sorted order that gives each poem its index (index = position + 1). */
+function archiveZips(corpus) {
+  const zips = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.midst.zip')) zips.push(p);
+    }
+  })(corpus);
+  return zips.sort();
 }
 
 const quantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1) + 0.5))];
@@ -88,15 +104,7 @@ function main(argv, { convertMidstFile = null, log = console.log, err = console.
     err('usage: node conformance/glide_estimate.cjs <corpus dir> [--top N] [--titles FILE]');
     return 2;
   }
-  const zips = [];
-  (function walk(d) {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.midst.zip')) zips.push(p);
-    }
-  })(corpus);
-  zips.sort();
+  const zips = archiveZips(corpus);
   if (zips.length === 0) {
     err(`no .midst.zip found under the corpus directory`);
     return 2;
@@ -142,5 +150,5 @@ function main(argv, { convertMidstFile = null, log = console.log, err = console.
   return failed.length ? 1 : 0;
 }
 
-module.exports = { estimate, paragraphAt, glideMs, main, BAND_SCREENS, VIEW_PX, STEP_MS };
+module.exports = { estimate, paragraphAt, glideMs, main, archiveZips, readPoem, BAND_SCREENS, VIEW_PX, STEP_MS };
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
