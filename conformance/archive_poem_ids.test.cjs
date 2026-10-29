@@ -9,6 +9,7 @@ const fs = require("fs"),
   os = require("os");
 const { execFileSync } = require("child_process");
 const { match, historyKey, main } = require("./archive_poem_ids.cjs");
+const { readPoem } = require("./glide_estimate.cjs");
 
 const ID_A = "0a1b2c3d-1111-4222-8333-444455556666";
 const ID_B = "9f8e7d6c-1111-4222-9333-444455556666";
@@ -121,10 +122,12 @@ test("a run matches real zips, numbers the archive as glide_estimate does, and p
       "x.midst",
       '{"poem":"one"}',
     );
+    // Published in the current format, as every published timelapse is (midst-editor #350): a header line, then the
+    // document. The stand-in converter cannot read it, so it is matched only if it is read without converting.
     zipOf(
       path.join(published, ID_A, "timelapse.midst.zip"),
       "y.midst",
-      '{"poem":"two","re":"exported"}',
+      `midstVersion: 1.0.0\n${JSON.stringify({ text: "MARKERTEXT", history: [{ t: "T2" }, { t: "T3" }], meta: { title: "MARKERTITLE" } })}`,
     );
     zipOf(
       path.join(published, ID_C, "timelapse.midst.zip"),
@@ -215,6 +218,38 @@ test("a poem that cannot be read is named by its index and the error class only,
       "MARKERDIR",
     ])
       expect(printed).not.toContain(marker);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a current-format file is read as it is, with a byte order mark or a Windows line ending; an old one is converted", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "midst-ids-test-"));
+  try {
+    const zipOf = (name, body) => {
+      const midst = path.join(dir, `${name}.midst`);
+      fs.writeFileSync(midst, body);
+      const zip = path.join(dir, `${name}.midst.zip`);
+      execFileSync("zip", ["-q", "-j", zip, midst]);
+      fs.rmSync(midst);
+      return zip;
+    };
+    const doc = JSON.stringify({ text: "", history: [{ t: "T9" }] });
+    const notCalled = () => {
+      throw new Error("the converter was called");
+    };
+    expect(
+      readPoem(zipOf("lf", `midstVersion: 1.0.0\n${doc}`), notCalled).history,
+    ).toEqual([{ t: "T9" }]);
+    expect(
+      readPoem(zipOf("crlf", `\uFEFFmidstVersion: 1.0.0\r\n${doc}`), notCalled)
+        .history,
+    ).toEqual([{ t: "T9" }]);
+    const old = readPoem(
+      zipOf("old", '{"editorTimelineFrames":[]}'),
+      () => doc,
+    );
+    expect(old.history).toEqual([{ t: "T9" }]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
