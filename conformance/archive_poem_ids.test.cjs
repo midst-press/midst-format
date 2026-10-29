@@ -168,6 +168,58 @@ test("a run matches real zips, numbers the archive as glide_estimate does, and p
   }
 });
 
+// The one place a file's details could reach stdout (vivian-1a61bc9a, review of #111).
+test("a poem that cannot be read is named by its index and the error class only, and the run returns 1", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "midst-ids-test-"));
+  try {
+    const zipOf = (zipPath, body) => {
+      const midst = path.join(dir, "p.midst");
+      fs.writeFileSync(midst, body);
+      fs.mkdirSync(path.dirname(zipPath), { recursive: true });
+      execFileSync("zip", ["-q", "-j", zipPath, midst]);
+      fs.rmSync(midst);
+    };
+    const archive = path.join(dir, "archive");
+    const published = path.join(dir, "published");
+    zipOf(
+      path.join(archive, "MARKERPOET", "MARKERPOEM.midst.zip"),
+      '{"bad":true}',
+    );
+    zipOf(path.join(published, ID_A, "timelapse.midst.zip"), '{"bad":true}');
+    // Not a poemId: skipped, never read.
+    zipOf(
+      path.join(published, "MARKERDIR", "timelapse.midst.zip"),
+      '{"bad":true}',
+    );
+    const convertMidstFile = () => {
+      throw new Error("MARKERMESSAGE quoting a poem");
+    };
+    const out = [];
+    const rc = main([archive, published], {
+      convertMidstFile,
+      log: (...a) => out.push(a.join(" ")),
+      err: (...a) => out.push(a.join(" ")),
+    });
+    const printed = out.join("\n");
+    expect(rc).toBe(1);
+    expect(printed).toContain(
+      "archive poems 1, published timelapses 1, could not be read 2",
+    );
+    expect(printed).toMatch(/^ {2}archive #1 not read \(Error\)$/m);
+    expect(printed).toContain(`published ${ID_A} not read (Error)`);
+    expect(printed).toContain("1 published timelapse(s) not read");
+    for (const marker of [
+      "MARKERMESSAGE",
+      "MARKERPOET",
+      "MARKERPOEM",
+      "MARKERDIR",
+    ])
+      expect(printed).not.toContain(marker);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("missing directories are a usage error", () => {
   const out = [];
   expect(main([], { log: (m) => out.push(m), err: (m) => out.push(m) })).toBe(

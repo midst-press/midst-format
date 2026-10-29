@@ -145,6 +145,13 @@ function main(
     `archive poems ${zips.length}, published timelapses ${staged.length}, could not be read ${failed.length}`,
   );
   for (const f of failed) log(`  ${f}`);
+  const unreadPublished = staged.length - published.length;
+  // A published poem not read is missing from the match: a true match can show as unmatched, and a poem with a
+  // duplicate among the unread can show as a unique match (vivian-1a61bc9a, review of #111).
+  if (unreadPublished)
+    log(
+      `  ${unreadPublished} published timelapse(s) not read: an unmatched, or a match, below may be wrong`,
+    );
   log(
     `matched ${count("content") + count("history")} (by content ${count("content")}, by history ${count("history")}), ambiguous ${count("ambiguous")}, unmatched ${count("unmatched")}`,
   );
