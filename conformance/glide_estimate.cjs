@@ -32,6 +32,9 @@ const PEAK_VIEWPORTS_PER_S = 5;
 const glideMs = (distance, viewport) =>
   Math.max(250, (2 * distance * 1000) / (PEAK_VIEWPORTS_PER_S * Math.max(1, viewport)));
 
+// src/convert.ts VERSION_HEADER, with the line ending: a byte order mark is allowed, and \r\n as well as \n.
+const CURRENT_HEADER = /^\uFEFF?midstVersion: \S+?\r?\n/;
+
 const step = (text, c) => text.slice(0, c.front) + c.inserted + text.slice(text.length - c.end);
 
 /** The paragraph a place in the HTML is in: how many paragraphs close before it. */
@@ -70,7 +73,11 @@ function readPoem(zip, convertMidstFile) {
     const cands = fs.readdirSync(tmp).filter((n) => n.endsWith('.midst') && !n.startsWith('._'));
     if (cands.length !== 1) throw new Error(`expected one .midst in the zip, found ${cands.length}`);
     const bytes = fs.readFileSync(path.join(tmp, cands[0]));
-    const converted = JSON.parse(convertMidstFile(bytes.toString('utf8')));
+    const raw = bytes.toString('utf8');
+    // A file already in the current format (`midstVersion: <version>` on its first line, then the document) is read
+    // as it is; only an old one is converted. Published timelapses are current (midst-editor #350).
+    const header = CURRENT_HEADER.exec(raw);
+    const converted = JSON.parse(header ? raw.slice(header[0].length) : convertMidstFile(raw));
     // The .midst inside, hashed: two zips of the same poem can differ only in their wrapping (midst-editor #350).
     const midstHash = crypto.createHash('sha256').update(bytes).digest('hex');
     return { history: converted.history, meta: converted.meta ?? {}, midstHash };
