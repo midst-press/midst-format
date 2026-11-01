@@ -22,11 +22,11 @@
     "reproducible": "node tools/reproducible.mjs"
   },
   "dependencies": {
-    "@tiptap/core": "3.32.0",
-    "@tiptap/extension-hard-break": "3.32.0",
-    "@tiptap/html": "3.32.0",
-    "@tiptap/pm": "3.32.0",
-    "@tiptap/starter-kit": "3.32.0",
+    "@tiptap/core": "3.32.1",
+    "@tiptap/extension-hard-break": "3.32.1",
+    "@tiptap/html": "3.32.1",
+    "@tiptap/pm": "3.32.1",
+    "@tiptap/starter-kit": "3.32.1",
     "happy-dom": "20.14.6",
     "node-html-parser": "6.1.13",
     "parse5": "7.3.0"
@@ -45,7 +45,7 @@
   },
   "comment_pins": "EXACT versions, no carets. ^2.5.4 resolves to 2.27.3 today and TipTap HTML generation is version-sensitive, so a caret verifies behaviour the editor does not have.",
   "overrides": {
-    "@tiptap/core": "3.32.0",
+    "@tiptap/core": "3.32.1",
     "@tiptap/extension-blockquote": "3.32.0",
     "@tiptap/extension-bold": "3.32.0",
     "@tiptap/extension-bullet-list": "3.32.0",
@@ -54,7 +54,7 @@
     "@tiptap/extension-document": "3.32.0",
     "@tiptap/extension-dropcursor": "3.32.0",
     "@tiptap/extension-gapcursor": "3.32.0",
-    "@tiptap/extension-hard-break": "3.32.0",
+    "@tiptap/extension-hard-break": "3.32.1",
     "@tiptap/extension-heading": "3.32.0",
     "@tiptap/extension-horizontal-rule": "3.32.0",
     "@tiptap/extension-italic": "3.32.0",
@@ -68,8 +68,8 @@
     "@tiptap/extension-text": "3.32.0",
     "@tiptap/extension-underline": "3.32.0",
     "@tiptap/extensions": "3.32.0",
-    "@tiptap/html": "3.32.0",
-    "@tiptap/pm": "3.32.0",
-    "@tiptap/starter-kit": "3.32.0"
+    "@tiptap/html": "3.32.1",
+    "@tiptap/pm": "3.32.1",
+    "@tiptap/starter-kit": "3.32.1"
   }
 }
