@@ -2,6 +2,24 @@
 
 Each version is a tag `vX.Y.Z` on `main`, and each app takes it by vendoring the tag (docs/LIBRARY.md).
 
+## 0.7.1
+
+- **happy-dom 21.0.4** (#113, GitHub alerts #4 and #5: SSRF through a stylesheet or iframe in parsed HTML, and host code
+  execution through an import alias). It parses the poem HTML that `convert` reads.
+- **TipTap 3.32.2.** `@tiptap/html` 3.32.0 accepts only happy-dom 20, so 3.32.2 is the first that takes the fix. Each app
+  moves to TipTap 3.32.2 and happy-dom 21.0.4 when it vendors this version.
+
+## 0.7.0
+
+- **Underline and strikethrough** (#108; midst-editor#140, GitHub midst-press/midst-editor#30). The poem schema's marks are
+  now bold, italic, underline and strike: `<u>` and `text-decoration: underline` parse as underline; `<s>`, `<del>`,
+  `<strike>` and `text-decoration: line-through` as strike. An app that vendors this version can write both, and its
+  player shows them. No existing Midst poem contains either (archive scan, 54 poems), so reconversion changes nothing.
+  - The conformance oracle, still TipTap 2.5.4, gains `@tiptap/extension-underline` 2.5.4 so it models the same marks.
+  - The mark-loss control is now `<code>`, a mark still off.
+  - The two marks bring their TipTap shortcuts: Mod-U for underline and Mod-Shift-S for strike. In midst-editor,
+    Mod-Shift-S is Save As, so the editor rebinds strike when it vendors this version (midst-editor#140).
+
 ## 0.6.0
 
 - **TipTap 3.32.0** (#102). Each app needs TipTap 3 before vendoring this version.
