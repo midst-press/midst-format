@@ -60,7 +60,7 @@ it scrolls the element it is given; see _The player helpers_ below.
 The entry points are separate so web can take `extensions` without pulling in `happy-dom`, which it
 does not depend on. Web uses nothing from `history`: at web `2e80f0e`, the only importer of its
 `helpers.ts` copy is the copied test (clement-7074f29f). TipTap is a peer dependency: each app keeps its own pinned
-3.32.0, and nothing is bundled twice.
+3.32.2, and nothing is bundled twice.
 
 What stays in the editor: `loadDataIntoWorkspace`, `resolveHtmlPath`, `writeConvertedFile` and the menu
 code, which are the Electron and file-system glue around the library.
